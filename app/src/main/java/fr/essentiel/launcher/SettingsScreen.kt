@@ -75,6 +75,12 @@ fun SettingsScreen(
                         prefs.setButtonTarget(pickerFor.key, null); onPick(null)
                     }
                 }
+                items(BUILT_INS.filter { it.id != pickerFor.builtIn }, key = { "b_" + it.id }) { b ->
+                    val value = AppLauncher.BUILTIN_PREFIX + b.id
+                    PickRow("Essentiel · ${b.label}", prefs.buttonTarget(pickerFor.key) == value) {
+                        prefs.setButtonTarget(pickerFor.key, value); onPick(null)
+                    }
+                }
                 items(apps, key = { it.pkg }) { app ->
                     PickRow(app.label, prefs.buttonTarget(pickerFor.key) == app.pkg) {
                         prefs.setButtonTarget(pickerFor.key, app.pkg); onPick(null)

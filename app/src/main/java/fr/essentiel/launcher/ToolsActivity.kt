@@ -15,6 +15,9 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import fr.essentiel.launcher.calendar.CalendarScreen
 import fr.essentiel.launcher.calendar.EventEditScreen
 import fr.essentiel.launcher.camera.CameraScreen
+import fr.essentiel.launcher.clock.ClockScreen
+import fr.essentiel.launcher.map.MapScreen
+import fr.essentiel.launcher.memos.MemosScreen
 import fr.essentiel.launcher.contacts.ContactDetailScreen
 import fr.essentiel.launcher.contacts.ContactEditScreen
 import fr.essentiel.launcher.contacts.ContactsScreen
@@ -41,7 +44,26 @@ sealed class Route {
     data object Calendar : Route()
     data class EventEdit(val eventId: Long?, val day: Long) : Route()
     data object Reminders : Route()
+    data object Clock : Route()
+    data object Memos : Route()
+    data object Map : Route()
 }
+
+/** Les apps intégrées, avec leur identifiant (utilisé par les boutons et la liste « mes apps »). */
+data class BuiltIn(val id: String, val label: String, val icon: LineIcon)
+
+val BUILT_INS = listOf(
+    BuiltIn("phone", "Téléphone", Icons.phone),
+    BuiltIn("messages", "Messages", Icons.message),
+    BuiltIn("contacts", "Contacts", Icons.users),
+    BuiltIn("camera", "Photo", Icons.camera),
+    BuiltIn("gallery", "Galerie", Icons.image),
+    BuiltIn("calendar", "Agenda", Icons.calendar),
+    BuiltIn("reminders", "Rappels", Icons.list),
+    BuiltIn("clock", "Horloge", Icons.clock),
+    BuiltIn("memos", "Mémos vocaux", Icons.mic),
+    BuiltIn("map", "Carte", Icons.map),
+)
 
 class Nav(private val stack: SnapshotStateList<Route>, private val finish: () -> Unit) {
     fun go(r: Route) { stack.add(r) }
@@ -96,6 +118,9 @@ class ToolsActivity : ComponentActivity() {
             "calendar" -> Route.Calendar
             "event" -> Route.EventEdit((i?.getLongExtra(EXTRA_EVENT, -1L) ?: -1L).takeIf { it >= 0 }, System.currentTimeMillis())
             "reminders" -> Route.Reminders
+            "clock" -> Route.Clock
+            "memos" -> Route.Memos
+            "map" -> Route.Map
             else -> Route.Phone()
         }
     }
@@ -138,6 +163,9 @@ fun ToolsHost(stack: SnapshotStateList<Route>, nav: Nav) {
             Route.Calendar -> CalendarScreen(nav)
             is Route.EventEdit -> EventEditScreen(nav, r.eventId, r.day)
             Route.Reminders -> RemindersScreen(nav)
+            Route.Clock -> ClockScreen(nav)
+            Route.Memos -> MemosScreen(nav)
+            Route.Map -> MapScreen(nav)
         }
     }
 }

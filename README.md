@@ -45,6 +45,18 @@ par-dessus l'ancienne (la clé de signature est fixe : `app/essentiel.keystore`)
 - **Agenda** : vue du mois, événements du jour, création / modification / suppression.
 - **Rappels** : un texte + une heure, notification avec « Fait » et « Dans 10 min ».
 
+## Nouveau en 0.3
+
+- **Horloge** : réveils (répétition par jour, « répéter dans 10 min », sonne écran verrouillé),
+  minuteur, chronomètre avec tours.
+- **Mémos vocaux** : enregistrement, lecture, renommer, partager, supprimer.
+- **Carte** (essai) : carte OpenFreeMap / OpenStreetMap repeinte aux couleurs d'Essentiel, ta position,
+  recherche d'adresses (Photon), itinéraires voiture / vélo / à pied (OSRM) avec guidage vocal simple.
+  Appui long sur la carte = choisir un point. Nécessite Internet (pas de carte hors ligne).
+
+Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut). On peut aussi les mettre
+à la place d'un bouton de l'accueil : Réglages › Boutons.
+
 ## Plus tard
 
-Réception et envoi des MMS, notes, mémos vocaux.
+Réception et envoi des MMS, notes, carte hors ligne.

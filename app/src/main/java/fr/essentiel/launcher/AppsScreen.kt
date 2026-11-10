@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -81,6 +82,36 @@ fun AppsScreen(
             modifier = Modifier.clickable(interactionSource = null, indication = null) { onClose() }
         )
         Spacer(Modifier.height(20.dp))
+
+        // Apps intégrées qui ne sont pas déjà sur l'écran d'accueil
+        val onGrid = remember(resumeTick) {
+            Tile.entries.mapNotNull { t ->
+                val c = prefs.buttonTarget(t.key)
+                when {
+                    c == null -> t.builtIn
+                    c.startsWith(AppLauncher.BUILTIN_PREFIX) -> c.removePrefix(AppLauncher.BUILTIN_PREFIX)
+                    else -> null
+                }
+            }.toSet()
+        }
+        val extra = BUILT_INS.filter { it.id !in onGrid }
+        if (extra.isNotEmpty()) {
+            extra.forEach { b ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { AppLauncher.start(ctx, ToolsActivity.intent(ctx, b.id)) }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LineIconView(b.icon, Palette.Accent, 22.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Text(b.label.lowercase(), style = bodyStyle(22), modifier = Modifier.weight(1f))
+                }
+                HorizontalDivider(color = Palette.Line, thickness = 1.dp)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
 
         if (rows.isEmpty()) {
             Text(

@@ -10,7 +10,7 @@ import android.widget.Toast
 enum class Tile(val key: String, val label: String, val icon: LineIcon, val builtIn: String?) {
     EVENT("event", "Agenda", Icons.calendar, "calendar"),
     REMINDERS("todo", "Rappels", Icons.bell, "reminders"),
-    TIMER("timer", "Minuteur", Icons.timer, null),
+    CLOCK("timer", "Horloge", Icons.clock, "clock"),
     GALLERY("gallery", "Galerie", Icons.image, "gallery"),
     CALL("call", "Appel", Icons.phone, "phone"),
     MESSAGE("message", "Message", Icons.message, "messages"),
@@ -33,7 +33,9 @@ object AppLauncher {
             .sortedBy { it.label.lowercase() }
     }
 
-    fun label(ctx: Context, pkg: String): String = try {
+    fun label(ctx: Context, pkg: String): String = if (pkg.startsWith(BUILTIN_PREFIX)) {
+        BUILT_INS.firstOrNull { it.id == pkg.removePrefix(BUILTIN_PREFIX) }?.let { "Essentiel · ${it.label}" } ?: pkg
+    } else try {
         val pm = ctx.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     } catch (e: Exception) {
@@ -60,16 +62,21 @@ object AppLauncher {
         start(ctx, i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    /** Intention par défaut de chaque bouton : l'app intégrée, ou l'app du système pour le minuteur. */
+    /** Intention par défaut de chaque bouton : l'app intégrée correspondante. */
     private fun defaultIntent(ctx: Context, tile: Tile): Intent? {
         tile.builtIn?.let { return ToolsActivity.intent(ctx, it) }
         val intent = Intent(AlarmClock.ACTION_SHOW_TIMERS)
         return intent.takeIf { it.resolveActivity(ctx.packageManager) != null }
     }
 
+    const val BUILTIN_PREFIX = "builtin:"
+
     /** Retourne false si aucune app n'est disponible pour ce bouton (il faut en choisir une). */
     fun launchTile(ctx: Context, prefs: Prefs, tile: Tile, onBlocked: (String) -> Unit): Boolean {
         val chosen = prefs.buttonTarget(tile.key)
+        if (chosen != null && chosen.startsWith(BUILTIN_PREFIX)) {
+            start(ctx, ToolsActivity.intent(ctx, chosen.removePrefix(BUILTIN_PREFIX))); return true
+        }
         if (chosen != null && isInstalled(ctx, chosen)) {
             launchPackage(ctx, prefs, chosen, onBlocked); return true
         }

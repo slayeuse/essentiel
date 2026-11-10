@@ -195,6 +195,9 @@ class ReminderReceiver : BroadcastReceiver() {
 /** Après un redémarrage du téléphone, on reprogramme les rappels. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) ReminderScheduler.rescheduleAll(context)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            ReminderScheduler.rescheduleAll(context)
+            fr.essentiel.launcher.clock.AlarmScheduler.rescheduleAll(context)
+        }
     }
 }

@@ -12,8 +12,10 @@ android {
         applicationId = "fr.essentiel.launcher"
         minSdk = 29          // Android 10 (ASUS Zenfone 5Z)
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
+        // Le Zenfone 5Z est en 64 bits : on n'embarque que cette version de la carte (APK plus léger)
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     // Clé fixe : les nouvelles versions s'installent par-dessus l'ancienne sans tout désinstaller.
@@ -64,4 +66,7 @@ dependencies {
     // Images (galerie, MMS, photos de contacts)
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-video:2.7.0")
+
+    // Carte (moteur MapLibre, tuiles OpenFreeMap / OpenStreetMap)
+    implementation("org.maplibre.gl:android-sdk:11.7.0")
 }

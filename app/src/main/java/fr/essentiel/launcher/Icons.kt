@@ -126,6 +126,14 @@ object Icons {
     val missed = LineIcon(listOf("M22 2l-6 6", "M16 2l6 6"))
     val incoming = LineIcon(listOf("M16 2v6h6", "M22 2l-6 6"))
     val outgoing = LineIcon(listOf("M16 2h6v6", "M16 8l6-6"))
+    val locate = LineIcon(
+        listOf("M2 12h3", "M19 12h3", "M12 2v3", "M12 19v3"),
+        circles = listOf(Triple(12f, 12f, 7f)),
+        dots = listOf(12f to 12f)
+    )
+    val map = LineIcon(
+        listOf("M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14", "M15 6v14")
+    )
 }
 
 @Composable

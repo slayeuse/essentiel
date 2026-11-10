@@ -5,6 +5,8 @@
     <!-- Météo -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Bandeau agenda -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- Limites de temps -->
@@ -162,6 +164,33 @@
         <receiver android:name=".messages.SmsSentReceiver" android:exported="false" />
         <receiver android:name=".messages.SmsReplyReceiver" android:exported="false" />
         <receiver android:name=".messages.SmsMarkReadReceiver" android:exported="false" />
+
+        <!-- Horloge -->
+        <activity
+            android:name=".clock.AlarmRingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="fr.essentiel.launcher.alarm" />
+        <service
+            android:name=".clock.AlarmRingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <receiver android:name=".clock.AlarmReceiver" android:exported="false" />
+
+        <!-- Partage des mémos vocaux -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Rappels -->
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
