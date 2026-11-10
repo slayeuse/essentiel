@@ -1,9 +1,8 @@
 package fr.essentiel.launcher
 
 import android.Manifest
-import android.content.ContentUris
+import fr.essentiel.launcher.reminders.ReminderStore
 import android.content.Intent
-import android.provider.CalendarContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -153,11 +152,26 @@ fun HomeScreen(
             else -> {
                 val time = if (ev.allDay) "journée" else SimpleDateFormat("HH:mm", FR).format(Date(ev.begin))
                 Banner(Icons.calendar, "${ev.title} · $time", remaining) {
-                    val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, ev.id)
-                    AppLauncher.start(ctx, Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    AppLauncher.start(
+                        ctx, ToolsActivity.intent(ctx, "event").putExtra(ToolsActivity.EXTRA_EVENT, ev.id)
+                    )
                 }
             }
         }
+
+        Spacer(Modifier.height(14.dp))
+
+        // ----- Bandeau rappels -----
+        val reminderVersion = ReminderStore.version.intValue
+        val pendingReminders = remember(reminderVersion, resumeTick, now) {
+            ReminderStore.all(ctx).filter { !it.done }
+        }
+        val nextReminder = pendingReminders.firstOrNull()
+        Banner(
+            Icons.list,
+            nextReminder?.let { "${it.text} · ${ReminderStore.label(it.time)}" } ?: "aucun rappel",
+            pendingReminders.size.takeIf { it > 0 },
+        ) { AppLauncher.launchTile(ctx, prefs, Tile.REMINDERS, onBlocked) }
 
         Spacer(Modifier.weight(1f))
 

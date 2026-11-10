@@ -4,20 +4,18 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.AlarmClock
-import android.provider.CalendarContract
-import android.provider.MediaStore
 import android.widget.Toast
 
-/** Les 8 boutons de la grille. */
-enum class Tile(val key: String, val label: String, val icon: LineIcon) {
-    NOTE("note", "Note", Icons.note),
-    EVENT("event", "Agenda", Icons.calendar),
-    TIMER("timer", "Minuteur", Icons.timer),
-    TODO("todo", "À faire", Icons.list),
-    CALL("call", "Appel", Icons.phone),
-    MESSAGE("message", "Message", Icons.message),
-    CAMERA("camera", "Photo", Icons.camera),
-    MEMO("memo", "Mémo", Icons.mic),
+/** Les 8 boutons de la grille. builtIn = écran d'une app intégrée à Essentiel (null = app du système). */
+enum class Tile(val key: String, val label: String, val icon: LineIcon, val builtIn: String?) {
+    EVENT("event", "Agenda", Icons.calendar, "calendar"),
+    REMINDERS("todo", "Rappels", Icons.bell, "reminders"),
+    TIMER("timer", "Minuteur", Icons.timer, null),
+    GALLERY("gallery", "Galerie", Icons.image, "gallery"),
+    CALL("call", "Appel", Icons.phone, "phone"),
+    MESSAGE("message", "Message", Icons.message, "messages"),
+    CAMERA("camera", "Photo", Icons.camera, "camera"),
+    CONTACTS("contacts", "Contacts", Icons.users, "contacts"),
 }
 
 data class AppEntry(val pkg: String, val label: String)
@@ -62,24 +60,11 @@ object AppLauncher {
         start(ctx, i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    /** Intention par défaut de chaque bouton (app du système), ou null s'il faut en choisir une. */
+    /** Intention par défaut de chaque bouton : l'app intégrée, ou l'app du système pour le minuteur. */
     private fun defaultIntent(ctx: Context, tile: Tile): Intent? {
-        val pm = ctx.packageManager
-        val intent = when (tile) {
-            Tile.NOTE -> pm.getLaunchIntentForPackage("com.google.android.keep")
-            Tile.EVENT -> Intent(
-                Intent.ACTION_VIEW,
-                CalendarContract.CONTENT_URI.buildUpon().appendPath("time")
-                    .appendPath(System.currentTimeMillis().toString()).build()
-            )
-            Tile.TIMER -> Intent(AlarmClock.ACTION_SHOW_TIMERS)
-            Tile.TODO -> pm.getLaunchIntentForPackage("com.google.android.apps.tasks")
-            Tile.CALL -> Intent(Intent.ACTION_DIAL)
-            Tile.MESSAGE -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MESSAGING)
-            Tile.CAMERA -> Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
-            Tile.MEMO -> Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
-        } ?: return null
-        return intent.takeIf { it.resolveActivity(pm) != null }
+        tile.builtIn?.let { return ToolsActivity.intent(ctx, it) }
+        val intent = Intent(AlarmClock.ACTION_SHOW_TIMERS)
+        return intent.takeIf { it.resolveActivity(ctx.packageManager) != null }
     }
 
     /** Retourne false si aucune app n'est disponible pour ce bouton (il faut en choisir une). */
@@ -89,8 +74,8 @@ object AppLauncher {
             launchPackage(ctx, prefs, chosen, onBlocked); return true
         }
         val intent = defaultIntent(ctx, tile) ?: return false
-        val target = intent.resolveActivity(ctx.packageManager)?.packageName
-        if (target != null && target != "android" && isBlocked(ctx, prefs, target)) {
+        val target = intent.component?.packageName ?: intent.resolveActivity(ctx.packageManager)?.packageName
+        if (target != null && target != "android" && target != ctx.packageName && isBlocked(ctx, prefs, target)) {
             onBlocked(target); return true
         }
         start(ctx, intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

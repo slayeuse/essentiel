@@ -33,6 +33,18 @@ par-dessus l'ancienne (la clé de signature est fixe : `app/essentiel.keystore`)
 - **Limites** : quand une app atteint sa limite du jour, elle est fermée et reste bloquée jusqu'à minuit.
   Réduire une limite s'applique tout de suite, l'augmenter ou la retirer seulement le lendemain.
 
+## Apps intégrées (version 0.2)
+
+- **Téléphone** : clavier, appels récents, écran d'appel Essentiel (entrant / en cours, muet,
+  haut-parleur, attente, clavier pendant l'appel). Réglages › « App Téléphone par défaut ».
+- **Messages** : SMS (lecture, envoi, réponse depuis la notification) et affichage des MMS reçus.
+  Pas de RCS (impossible hors Google Messages). En app SMS par défaut, les nouveaux MMS ne sont pas encore reçus.
+- **Contacts** : liste, recherche, favoris, fiche, création, modification, suppression.
+- **Photo** : photo et vidéo, flash, caméra avant / arrière.
+- **Galerie** : photos et vidéos, visionneuse, partage, suppression.
+- **Agenda** : vue du mois, événements du jour, création / modification / suppression.
+- **Rappels** : un texte + une heure, notification avec « Fait » et « Dans 10 min ».
+
 ## Plus tard
 
-Notes, agenda, to-do, messages et téléphone intégrés au launcher.
+Réception et envoi des MMS, notes, mémos vocaux.

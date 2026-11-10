@@ -1,6 +1,8 @@
 package fr.essentiel.launcher
 
 import android.Manifest
+import android.app.role.RoleManager
+import fr.essentiel.launcher.phone.PhoneActions
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -58,6 +60,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { AppLauncher.installedApps(ctx) } }
 
     val askPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    val askRole = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
 
     // ---------- Choix de l'app d'un bouton ----------
     if (pickerFor != null) {
@@ -68,7 +71,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(12.dp))
             LazyColumn(Modifier.weight(1f)) {
                 item {
-                    PickRow("Par défaut (app du système)", prefs.buttonTarget(pickerFor.key) == null) {
+                    PickRow(if (pickerFor.builtIn != null) "App Essentiel (par défaut)" else "App du système (par défaut)", prefs.buttonTarget(pickerFor.key) == null) {
                         prefs.setButtonTarget(pickerFor.key, null); onPick(null)
                     }
                 }
@@ -102,6 +105,28 @@ fun SettingsScreen(
             item {
                 SettingRow("Choisir Essentiel comme launcher", "Réglages Android › Appli d'écran d'accueil") {
                     AppLauncher.start(ctx, Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+
+            item { Section("Apps intégrées") }
+            item {
+                val ok = remember(resumeTick, refresh) { PhoneActions.isDefaultDialer(ctx) }
+                SettingRow("App Téléphone par défaut", if (ok) "Essentiel · écran d'appel actif" else "à activer pour l'écran d'appel Essentiel") {
+                    PhoneActions.roleIntent(ctx, RoleManager.ROLE_DIALER)?.let { askRole.launch(it) }
+                }
+            }
+            item {
+                val ok = remember(resumeTick, refresh) { PhoneActions.isDefaultSms(ctx) }
+                SettingRow(
+                    "App SMS par défaut",
+                    if (ok) "Essentiel · les MMS ne sont pas encore reçus"
+                    else "facultatif · sans ça, Essentiel lit et envoie quand même les SMS"
+                ) {
+                    if (ok) {
+                        AppLauncher.start(ctx, Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } else {
+                        PhoneActions.roleIntent(ctx, RoleManager.ROLE_SMS)?.let { askRole.launch(it) }
+                    }
                 }
             }
 
@@ -140,7 +165,7 @@ fun SettingsScreen(
             item { Section("Boutons") }
             items(Tile.entries.toList(), key = { "tile_" + it.key }) { tile ->
                 val target = prefs.buttonTarget(tile.key)
-                SettingRow(tile.label, if (target == null) "app par défaut" else AppLauncher.label(ctx, target)) {
+                SettingRow(tile.label, if (target == null) (if (tile.builtIn != null) "app Essentiel" else "app du système") else AppLauncher.label(ctx, target)) {
                     onPick(tile)
                 }
             }
