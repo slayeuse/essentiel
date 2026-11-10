@@ -8,6 +8,8 @@ import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
@@ -16,7 +18,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
  * On repeint toutes ses couches aux couleurs d'Essentiel : beige, orange, encre.
  */
 object MapStyle {
-    const val STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
+    const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 
     private const val BG = "#E6E3DE"
     private const val LAND_DARK = "#DEDAD3"
@@ -33,7 +35,12 @@ object MapStyle {
     private const val MUTED = "#6E6C69"
     const val ACCENT = "#F2390C"
 
+    /** Couches des points d'intérêt (restaurants, magasins…), pour pouvoir les toucher. */
+    var poiLayers: Array<String> = emptyArray()
+        private set
+
     fun apply(style: Style) {
+        poiLayers = style.layers.filter { it is SymbolLayer && "poi" in it.id.lowercase() }.map { it.id }.toTypedArray()
         for (layer in style.layers) {
             val id = layer.id.lowercase()
             try {
@@ -51,6 +58,7 @@ object MapStyle {
                         else -> {}
                     }
                     is FillExtrusionLayer -> layer.setProperties(PropertyFactory.fillExtrusionColor(BUILDING))
+                    is RasterLayer -> layer.setProperties(PropertyFactory.rasterOpacity(0.15f), PropertyFactory.rasterSaturation(-1f))
                     is LineLayer -> when {
                         "water" in id || "river" in id -> layer.setProperties(PropertyFactory.lineColor(WATER))
                         "boundary" in id || "admin" in id -> layer.setProperties(PropertyFactory.lineColor(BORDER))
@@ -69,7 +77,7 @@ object MapStyle {
                             PropertyFactory.textColor(MUTED), PropertyFactory.textHaloColor(ROAD)
                         )
                         "poi" in id -> layer.setProperties(
-                            PropertyFactory.textColor(MUTED), PropertyFactory.textHaloColor(BG), PropertyFactory.iconOpacity(0.55f)
+                            PropertyFactory.textColor("#5E4A3F"), PropertyFactory.textHaloColor(BG), PropertyFactory.iconOpacity(0.9f)
                         )
                         else -> layer.setProperties(PropertyFactory.textColor(INK), PropertyFactory.textHaloColor(BG))
                     }
@@ -83,6 +91,8 @@ object MapStyle {
     const val SRC_ROUTE = "essentiel-route"
     const val SRC_PIN = "essentiel-pin"
     const val SRC_ME = "essentiel-me"
+    const val SRC_RESULTS = "essentiel-results"
+    const val LAYER_RESULTS = "essentiel-results-dot"
 
     /** Couches ajoutées par Essentiel : itinéraire, épingle, position. */
     private fun addOverlays(style: Style) {
@@ -104,6 +114,31 @@ object MapStyle {
         } else {
             style.addLayer(routeCasing); style.addLayer(routeLine)
         }
+
+        // Résultats de recherche (plusieurs points avec leur nom)
+        val font: Array<String>? = try {
+            (style.layers.firstOrNull { it is SymbolLayer } as? SymbolLayer)?.textFont?.value
+        } catch (e: Exception) { null }
+        val results = GeoJsonSource(SRC_RESULTS).also { it.setGeoJson(MapApi.EMPTY) }
+        style.addSource(results)
+        style.addLayer(
+            CircleLayer(LAYER_RESULTS, SRC_RESULTS).withProperties(
+                PropertyFactory.circleColor(ACCENT), PropertyFactory.circleRadius(7f),
+                PropertyFactory.circleStrokeColor("#FFFFFF"), PropertyFactory.circleStrokeWidth(2.5f)
+            )
+        )
+        val label = SymbolLayer("essentiel-results-label", SRC_RESULTS).withProperties(
+            PropertyFactory.textField(Expression.get("name")),
+            PropertyFactory.textSize(12f),
+            PropertyFactory.textOffset(arrayOf(0f, 1.1f)),
+            PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+            PropertyFactory.textColor(INK),
+            PropertyFactory.textHaloColor(BG),
+            PropertyFactory.textHaloWidth(1.6f),
+            PropertyFactory.textOptional(true),
+        )
+        if (font != null) label.setProperties(PropertyFactory.textFont(font))
+        style.addLayer(label)
 
         val pin = GeoJsonSource(SRC_PIN).also { it.setGeoJson(MapApi.EMPTY) }
         style.addSource(pin)

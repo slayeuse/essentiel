@@ -74,6 +74,7 @@ fun PhoneScreen(nav: Nav, initialNumber: String) {
                 Manifest.permission.CALL_PHONE,
                 Manifest.permission.READ_CALL_LOG,
                 Manifest.permission.READ_CONTACTS,
+                Manifest.permission.READ_PHONE_STATE,
             ),
             "Pour passer des appels et voir l'historique, Essentiel a besoin de ces autorisations."
         ) {

@@ -165,6 +165,24 @@
         <receiver android:name=".messages.SmsReplyReceiver" android:exported="false" />
         <receiver android:name=".messages.SmsMarkReadReceiver" android:exported="false" />
 
+        <!-- Écran de verrouillage -->
+        <activity
+            android:name=".lock.LockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:showWhenLocked="true"
+            android:taskAffinity="fr.essentiel.launcher.lock" />
+        <service
+            android:name=".lock.LockService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Affiche l'écran de verrouillage personnalisé quand l'écran s'éteint" />
+        </service>
+
         <!-- Horloge -->
         <activity
             android:name=".clock.AlarmRingActivity"

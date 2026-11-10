@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         resumeTick.intValue++
         LimitWatcherService.ensure(this)
+        fr.essentiel.launcher.lock.LockService.ensure(this)
     }
 
     private fun readBlocked(i: Intent?): Boolean {
@@ -96,7 +97,7 @@ fun EssentielApp(
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
     var screen by remember { mutableStateOf(Screen.HOME) }
-    var pickerFor by remember { mutableStateOf<Tile?>(null) }
+    var pickerFor by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(homeTick) { screen = Screen.HOME; pickerFor = null }
 

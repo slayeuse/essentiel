@@ -44,6 +44,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.width
+import fr.essentiel.launcher.paper
 import coil.compose.AsyncImage
 import fr.essentiel.launcher.Avatar
 import fr.essentiel.launcher.Divider
@@ -208,87 +213,165 @@ fun ConversationScreen(nav: Nav, threadIdArg: Long, addressArg: String, draft: S
     val ctx = LocalContext.current
     var threadId by remember { mutableStateOf(threadIdArg) }
     var address by remember { mutableStateOf(addressArg) }
-    val title = remember(address) { ContactsRepo.nameFor(ctx, address) ?: address.ifBlank { "conversation" } }
+    val name = remember(address) { ContactsRepo.nameFor(ctx, address) }
+    val title = name ?: address.ifBlank { "conversation" }
 
-    ToolScaffold(title, onBack = nav::back, actions = {
-        if (address.isNotBlank()) IconAction(Icons.phone) { PhoneActions.call(ctx, address) }
-    }) {
-        PermissionGate(SMS_PERMS, "Pour lire et envoyer tes SMS, Essentiel a besoin de ces autorisations.") {
-            val version = rememberContentVersion(SmsRepo.ALL_URI)
-            var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
-            LaunchedEffect(version, threadId) {
-                if (threadId < 0 && address.isNotBlank()) threadId = ToolsActivity.threadFor(ctx, address)
-                if (address.isBlank() && threadId >= 0) {
-                    address = withContext(Dispatchers.IO) {
-                        SmsRepo.conversations(ctx).firstOrNull { it.threadId == threadId }?.addresses?.firstOrNull().orEmpty()
+    Column(Modifier.fillMaxSize().paper()) {
+        // ----- En-tête -----
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconAction(Icons.back, Palette.Ink, 26.dp) { nav.back() }
+            Spacer(Modifier.width(4.dp))
+            Avatar(title, null, 40.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = bodyStyle(18, bold = true), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (name != null) Text(address, style = bodyStyle(13, Palette.Muted), maxLines = 1)
+            }
+            if (address.isNotBlank()) IconAction(Icons.phone) { PhoneActions.call(ctx, address) }
+        }
+        Divider()
+
+        Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            PermissionGate(SMS_PERMS, "Pour lire et envoyer tes SMS, Essentiel a besoin de ces autorisations.") {
+                val version = rememberContentVersion(SmsRepo.ALL_URI)
+                var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
+                LaunchedEffect(version, threadId) {
+                    if (threadId < 0 && address.isNotBlank()) threadId = ToolsActivity.threadFor(ctx, address)
+                    if (address.isBlank() && threadId >= 0) {
+                        address = withContext(Dispatchers.IO) {
+                            SmsRepo.conversations(ctx).firstOrNull { it.threadId == threadId }?.addresses?.firstOrNull().orEmpty()
+                        }
+                    }
+                    messages = withContext(Dispatchers.IO) { SmsRepo.messages(ctx, threadId) }
+                    withContext(Dispatchers.IO) { SmsRepo.markRead(ctx, threadId) }
+                    ctx.getSystemService(android.app.NotificationManager::class.java)?.cancel(MessageNotifier.idFor(address))
+                }
+                if (messages.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Pas encore de message.\nÉcris le premier ci-dessous.", style = bodyStyle(15, Palette.Muted), textAlign = TextAlign.Center)
+                    }
+                } else {
+                    val reversed = messages.asReversed()
+                    LazyColumn(Modifier.fillMaxSize(), reverseLayout = true) {
+                        items(reversed.size, key = { reversed[it].id }) { i ->
+                            val m = reversed[i]
+                            val older = reversed.getOrNull(i + 1)   // message juste au-dessus
+                            val newer = reversed.getOrNull(i - 1)   // message juste en dessous
+                            val sameDayAsOlder = older != null && sameDay(older.date, m.date)
+                            val groupedAbove = older != null && older.outgoing == m.outgoing && sameDayAsOlder && m.date - older.date < 5 * 60_000
+                            val groupedBelow = newer != null && newer.outgoing == m.outgoing && sameDay(newer.date, m.date) && newer.date - m.date < 5 * 60_000
+                            Column {
+                                if (!sameDayAsOlder) DaySeparator(m.date)
+                                Bubble(m, groupedAbove, groupedBelow)
+                            }
+                        }
                     }
                 }
-                messages = withContext(Dispatchers.IO) { SmsRepo.messages(ctx, threadId) }
-                withContext(Dispatchers.IO) { SmsRepo.markRead(ctx, threadId) }
-                ctx.getSystemService(android.app.NotificationManager::class.java)?.cancel(MessageNotifier.idFor(address))
             }
-            var text by remember { mutableStateOf(draft) }
+        }
 
-            Column(Modifier.fillMaxSize()) {
-                LazyColumn(Modifier.weight(1f), reverseLayout = true) {
-                    items(messages.asReversed(), key = { it.id }) { m -> Bubble(m) }
-                }
-                Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Field(
-                        text, { text = it }, "message", Modifier.weight(1f), singleLine = false,
-                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Text)
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    Box(
-                        Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(if (text.isBlank()) Palette.Card else Palette.Accent)
-                            .clickable(enabled = text.isNotBlank()) {
-                                if (SmsSender.send(ctx, address, text.trim())) text = ""
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) { LineIconView(Icons.send, if (text.isBlank()) Palette.Muted else Color.White, 22.dp) }
-                }
+        // ----- Barre de saisie -----
+        var text by remember { mutableStateOf(draft) }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            val shape = RoundedCornerShape(26.dp)
+            Box(
+                Modifier.weight(1f).clip(shape).background(Palette.Card).border(1.dp, Palette.Line, shape)
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
+            ) {
+                if (text.isEmpty()) Text("SMS", style = bodyStyle(17, Palette.Muted))
+                androidx.compose.foundation.text.BasicTextField(
+                    value = text, onValueChange = { text = it }, maxLines = 6,
+                    textStyle = bodyStyle(17), cursorBrush = androidx.compose.ui.graphics.SolidColor(Palette.Accent),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
+            Spacer(Modifier.size(8.dp))
+            val canSend = text.isNotBlank() && address.isNotBlank()
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(if (canSend) Palette.Accent else Palette.Card)
+                    .border(1.dp, if (canSend) Palette.Accent else Palette.Line, CircleShape)
+                    .clickable(enabled = canSend) {
+                        if (SmsSender.send(ctx, address, text.trim())) text = ""
+                    },
+                contentAlignment = Alignment.Center,
+            ) { LineIconView(Icons.send, if (canSend) Color.White else Palette.Muted, 22.dp) }
         }
     }
 }
 
+private fun sameDay(a: Long, b: Long): Boolean {
+    val ca = java.util.Calendar.getInstance().apply { timeInMillis = a }
+    val cb = java.util.Calendar.getInstance().apply { timeInMillis = b }
+    return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) &&
+        ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
 @Composable
-private fun Bubble(m: Message) {
-    val shape = RoundedCornerShape(20.dp)
+private fun DaySeparator(date: Long) {
+    val label = when {
+        DateUtils.isToday(date) -> "aujourd'hui"
+        DateUtils.isToday(date + 86_400_000L) -> "hier"
+        else -> SimpleDateFormat("EEEE d MMMM", Locale.FRANCE).format(Date(date))
+    }
+    Text(
+        label, style = bodyStyle(12, Palette.Muted, bold = true), textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun Bubble(m: Message, groupedAbove: Boolean, groupedBelow: Boolean) {
+    val big = 22.dp
+    val small = 6.dp
+    // Coins resserrés du côté de l'expéditeur quand plusieurs messages se suivent
+    val shape = if (m.outgoing) RoundedCornerShape(
+        topStart = big, topEnd = if (groupedAbove) small else big,
+        bottomStart = big, bottomEnd = if (groupedBelow) small else big
+    ) else RoundedCornerShape(
+        topStart = if (groupedAbove) small else big, topEnd = big,
+        bottomStart = if (groupedBelow) small else big, bottomEnd = big
+    )
+    val fg = if (m.outgoing) Color.White else Palette.Ink
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(top = if (groupedAbove) 2.dp else 8.dp),
         horizontalAlignment = if (m.outgoing) Alignment.End else Alignment.Start,
     ) {
         Column(
             Modifier
-                .widthIn(max = 290.dp)
+                .widthIn(max = 280.dp)
                 .clip(shape)
-                .background(if (m.outgoing) Palette.Accent else Palette.Card)
+                .background(if (m.outgoing) Palette.Accent else Color(0xFFF4F2EE))
                 .border(1.dp, if (m.outgoing) Palette.Accent else Palette.Line, shape)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             m.images.forEach { uri ->
                 AsyncImage(
                     model = uri, contentDescription = null, contentScale = ContentScale.Fit,
-                    modifier = Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(12.dp))
+                    modifier = Modifier.widthIn(max = 250.dp).clip(RoundedCornerShape(14.dp))
                 )
             }
-            if (m.body.isNotBlank()) {
-                Text(m.body, style = bodyStyle(16, if (m.outgoing) Color.White else Palette.Ink))
+            if (m.body.isNotBlank()) Text(m.body, style = bodyStyle(16, fg).copy(lineHeight = 22.sp))
+            if (!groupedBelow || m.failed || m.pending) {
+                Text(
+                    when {
+                        m.failed -> "échec de l'envoi"
+                        m.pending -> "envoi…"
+                        else -> SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(m.date))
+                    },
+                    style = bodyStyle(11, if (m.outgoing) Color.White.copy(alpha = 0.8f) else Palette.Muted),
+                    modifier = Modifier.align(Alignment.End)
+                )
             }
         }
-        val status = when {
-            m.failed -> "échec de l'envoi"
-            m.pending -> "envoi…"
-            else -> shortDate(m.date)
-        }
-        Text(
-            status, style = bodyStyle(11, if (m.failed) Palette.Accent else Palette.Muted),
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
     }
 }

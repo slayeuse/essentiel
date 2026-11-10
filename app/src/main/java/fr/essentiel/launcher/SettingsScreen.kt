@@ -48,8 +48,8 @@ private val LIMIT_CHOICES = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90, 120)
 fun SettingsScreen(
     prefs: Prefs,
     resumeTick: Int,
-    pickerFor: Tile?,
-    onPick: (Tile?) -> Unit,
+    pickerFor: Int?,
+    onPick: (Int?) -> Unit,
     onClose: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -62,29 +62,26 @@ fun SettingsScreen(
     val askPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
     val askRole = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
 
-    // ---------- Choix de l'app d'un bouton ----------
+    // ---------- Choix de l'app d'une case de l'accueil ----------
     if (pickerFor != null) {
+        val slot = pickerFor
+        val current = remember(slot) { prefs.slots().getOrElse(slot) { "" } }
+        fun choose(value: String) { prefs.setSlot(slot, value); onPick(null) }
         Column(Modifier.fillMaxSize().paper().padding(horizontal = 26.dp)) {
             Spacer(Modifier.height(28.dp))
-            Title("bouton ${pickerFor.label.lowercase()}")
-            Text("Quelle app ouvrir ?", style = bodyStyle(16, Palette.Muted))
+            Title("case ${slot + 1}")
+            Text("Quelle app mettre ici ?", style = bodyStyle(16, Palette.Muted))
             Spacer(Modifier.height(12.dp))
             LazyColumn(Modifier.weight(1f)) {
-                item {
-                    PickRow(if (pickerFor.builtIn != null) "App Essentiel (par défaut)" else "App du système (par défaut)", prefs.buttonTarget(pickerFor.key) == null) {
-                        prefs.setButtonTarget(pickerFor.key, null); onPick(null)
-                    }
-                }
-                items(BUILT_INS.filter { it.id != pickerFor.builtIn }, key = { "b_" + it.id }) { b ->
+                item { PickRow("Case vide", current.isBlank()) { choose("") } }
+                item { Section("Apps Essentiel") }
+                items(BUILT_INS, key = { "b_" + it.id }) { b ->
                     val value = AppLauncher.BUILTIN_PREFIX + b.id
-                    PickRow("Essentiel · ${b.label}", prefs.buttonTarget(pickerFor.key) == value) {
-                        prefs.setButtonTarget(pickerFor.key, value); onPick(null)
-                    }
+                    PickRow(b.label, current == value) { choose(value) }
                 }
+                item { Section("Apps installées") }
                 items(apps, key = { it.pkg }) { app ->
-                    PickRow(app.label, prefs.buttonTarget(pickerFor.key) == app.pkg) {
-                        prefs.setButtonTarget(pickerFor.key, app.pkg); onPick(null)
-                    }
+                    PickRow(app.label, current == app.pkg) { choose(app.pkg) }
                 }
             }
             BottomLink("retour") { onPick(null) }
@@ -111,6 +108,24 @@ fun SettingsScreen(
             item {
                 SettingRow("Choisir Essentiel comme launcher", "Réglages Android › Appli d'écran d'accueil") {
                     AppLauncher.start(ctx, Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+
+            item { Section("Écran de verrouillage") }
+            item {
+                val on = remember(resumeTick, refresh) { prefs.lockScreen }
+                val overlay = remember(resumeTick, refresh) { Usage.canDrawOverlays(ctx) }
+                SettingRow(
+                    "Écran de verrouillage Essentiel",
+                    when {
+                        on && !overlay -> "activé · autorise « Afficher par-dessus les autres apps » ci-dessous"
+                        on -> "activé · ton code Android reste demandé après"
+                        else -> "désactivé · touche pour l'activer"
+                    }
+                ) {
+                    prefs.lockScreen = !on
+                    fr.essentiel.launcher.lock.LockService.ensure(ctx)
+                    refresh++
                 }
             }
 
@@ -168,12 +183,17 @@ fun SettingsScreen(
                 }
             }
 
-            item { Section("Boutons") }
-            items(Tile.entries.toList(), key = { "tile_" + it.key }) { tile ->
-                val target = prefs.buttonTarget(tile.key)
-                SettingRow(tile.label, if (target == null) (if (tile.builtIn != null) "app Essentiel" else "app du système") else AppLauncher.label(ctx, target)) {
-                    onPick(tile)
-                }
+            item { Section("Écran d'accueil : favoris") }
+            item {
+                Text(
+                    "Appuie longuement sur une case de l'accueil pour modifier les favoris : nombre de cases (4, 8 ou 12), " +
+                        "ordre (flèches ‹ ›) et app de chaque case (touche la case).",
+                    style = bodyStyle(14, Palette.Muted), modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            items(prefs.slots().take(prefs.tileCount).indices.toList(), key = { "slot_$it" }) { i ->
+                val v = prefs.slots()[i]
+                SettingRow("Case ${i + 1}", AppLauncher.slotInfo(ctx, v)?.label ?: "vide") { onPick(i) }
             }
 
             item { Section("Mes apps et limites") }

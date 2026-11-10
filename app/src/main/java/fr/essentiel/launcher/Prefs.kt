@@ -30,6 +30,42 @@ class Prefs(context: Context) {
         e.apply()
     }
 
+    // ---------- Cases de l'écran d'accueil (favoris) ----------
+    // Chaque case : "builtin:<id>" (app Essentiel), un nom de paquet (app installée) ou "" (vide).
+    var tileCount: Int
+        get() = sp.getInt("tile_count", 8).let { if (it in listOf(4, 8, 12)) it else 8 }
+        set(value) = sp.edit().putInt("tile_count", value).apply()
+
+    fun slots(): MutableList<String> {
+        val stored = sp.getString("slots", null)
+        val list = if (stored != null) stored.split("|").toMutableList() else
+            // première fois : on reprend les 8 boutons d'origine (et les choix déjà faits)
+            Tile.entries.map { t -> buttonTarget(t.key) ?: (AppLauncher.BUILTIN_PREFIX + t.builtIn) }.toMutableList()
+        val extras = listOf(AppLauncher.BUILTIN_PREFIX + "memos", AppLauncher.BUILTIN_PREFIX + "map", "", "")
+        var i = 0
+        while (list.size < 12) { list.add(extras.getOrElse(i) { "" }); i++ }
+        return list.take(12).toMutableList()
+    }
+
+    fun setSlots(list: List<String>) {
+        sp.edit().putString("slots", list.joinToString("|")).apply()
+    }
+
+    fun setSlot(index: Int, value: String) {
+        val l = slots(); if (index in l.indices) { l[index] = value; setSlots(l) }
+    }
+
+    fun moveSlot(from: Int, to: Int) {
+        val l = slots()
+        if (from !in l.indices || to !in l.indices) return
+        val v = l.removeAt(from); l.add(to, v); setSlots(l)
+    }
+
+    // ---------- Écran de verrouillage ----------
+    var lockScreen: Boolean
+        get() = sp.getBoolean("lock_screen", false)
+        set(value) = sp.edit().putBoolean("lock_screen", value).apply()
+
     // ---------- Limites de temps (minutes par jour, 0 = aucune) ----------
     fun limitMinutes(pkg: String): Int {
         applyPending(pkg)

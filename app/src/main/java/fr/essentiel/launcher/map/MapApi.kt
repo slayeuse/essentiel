@@ -12,7 +12,63 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-data class Place(val name: String, val address: String, val lat: Double, val lon: Double)
+data class Place(
+    val name: String,
+    val address: String,
+    val lat: Double,
+    val lon: Double,
+    val category: String = "",
+)
+
+/** Catégories rapides de la recherche. */
+data class Category(val label: String, val word: String, val osmTag: String, val icon: String)
+
+val CATEGORIES = listOf(
+    Category("Restaurants", "restaurant", "amenity:restaurant", "🍽"),
+    Category("Cafés", "café", "amenity:cafe", "☕"),
+    Category("Boulangeries", "boulangerie", "shop:bakery", "🥖"),
+    Category("Supermarchés", "supermarché", "shop:supermarket", "🛒"),
+    Category("Pharmacies", "pharmacie", "amenity:pharmacy", "✚"),
+    Category("Stations-service", "station service", "amenity:fuel", "⛽"),
+    Category("Parkings", "parking", "amenity:parking", "P"),
+    Category("Distributeurs", "distributeur", "amenity:atm", "€"),
+)
+
+/** Nom français d'une catégorie OpenStreetMap (classe / sous-classe d'un point d'intérêt). */
+fun frenchCategory(value: String): String = when (value) {
+    "restaurant" -> "restaurant"
+    "fast_food" -> "restauration rapide"
+    "cafe" -> "café"
+    "bar", "pub", "beer" -> "bar"
+    "bakery" -> "boulangerie"
+    "supermarket", "grocery", "convenience" -> "alimentation"
+    "pharmacy" -> "pharmacie"
+    "hospital" -> "hôpital"
+    "doctors", "doctor" -> "médecin"
+    "fuel" -> "station-service"
+    "parking" -> "parking"
+    "bank" -> "banque"
+    "atm" -> "distributeur"
+    "post", "post_office" -> "la poste"
+    "school" -> "école"
+    "college", "university" -> "université"
+    "library" -> "bibliothèque"
+    "town_hall" -> "mairie"
+    "police" -> "police"
+    "museum" -> "musée"
+    "cinema" -> "cinéma"
+    "theatre" -> "théâtre"
+    "park" -> "parc"
+    "place_of_worship" -> "lieu de culte"
+    "bus" -> "arrêt de bus"
+    "railway", "station" -> "gare"
+    "hotel", "lodging" -> "hôtel"
+    "clothing_store", "clothes" -> "vêtements"
+    "hairdresser" -> "coiffeur"
+    "shop" -> "magasin"
+    "sports", "sports_centre" -> "sport"
+    else -> value.replace('_', ' ')
+}
 
 data class Step(val instruction: String, val distance: Double, val lat: Double, val lon: Double)
 
@@ -57,13 +113,16 @@ object MapApi {
             .filter { it.isNotBlank() }.joinToString(" ")
         val name = p.optString("name").ifBlank { street.ifBlank { city } }
         val address = listOf(if (name == street) "" else street, city).filter { it.isNotBlank() }.joinToString(", ")
-        return Place(name.ifBlank { "Lieu" }, address, coords.getDouble(1), coords.getDouble(0))
+        val cat = p.optString("osm_value").let { if (it.isBlank() || it == "yes") "" else frenchCategory(it) }
+        return Place(name.ifBlank { "Lieu" }, address, coords.getDouble(1), coords.getDouble(0), cat)
     }
 
-    fun search(query: String, nearLat: Double?, nearLon: Double?): List<Place> = try {
+    fun search(query: String, nearLat: Double?, nearLon: Double?, osmTag: String? = null, limit: Int = 10): List<Place> = try {
         val q = URLEncoder.encode(query, "UTF-8")
-        val bias = if (nearLat != null && nearLon != null) String.format(Locale.US, "&lat=%.5f&lon=%.5f", nearLat, nearLon) else ""
-        val json = JSONObject(get("https://photon.komoot.io/api/?q=$q&lang=fr&limit=8$bias"))
+        val bias = if (nearLat != null && nearLon != null)
+            String.format(Locale.US, "&lat=%.5f&lon=%.5f&location_bias_scale=0.5", nearLat, nearLon) else ""
+        val tag = if (osmTag != null) "&osm_tag=" + URLEncoder.encode(osmTag, "UTF-8") else ""
+        val json = JSONObject(get("https://photon.komoot.io/api/?q=$q&lang=fr&limit=$limit$bias$tag"))
         val arr = json.optJSONArray("features") ?: JSONArray()
         (0 until arr.length()).mapNotNull { placeFrom(arr.getJSONObject(it)) }
     } catch (e: Exception) {
@@ -165,6 +224,18 @@ object MapApi {
 
     fun pointJson(lat: Double, lon: Double): String =
         String.format(Locale.US, """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[%.6f,%.6f]}}""", lon, lat)
+
+    fun pointsJson(places: List<Place>): String {
+        val feats = places.mapIndexed { i, p ->
+            val name = JSONObject.quote(p.name)
+            String.format(
+                Locale.US,
+                """{"type":"Feature","properties":{"i":%d,"name":%s},"geometry":{"type":"Point","coordinates":[%.6f,%.6f]}}""",
+                i, name, p.lon, p.lat
+            )
+        }
+        return """{"type":"FeatureCollection","features":[${feats.joinToString(",")}]}"""
+    }
 
     const val EMPTY = """{"type":"FeatureCollection","features":[]}"""
 }

@@ -85,14 +85,10 @@ fun AppsScreen(
 
         // Apps intégrées qui ne sont pas déjà sur l'écran d'accueil
         val onGrid = remember(resumeTick) {
-            Tile.entries.mapNotNull { t ->
-                val c = prefs.buttonTarget(t.key)
-                when {
-                    c == null -> t.builtIn
-                    c.startsWith(AppLauncher.BUILTIN_PREFIX) -> c.removePrefix(AppLauncher.BUILTIN_PREFIX)
-                    else -> null
-                }
-            }.toSet()
+            prefs.slots().take(prefs.tileCount)
+                .filter { it.startsWith(AppLauncher.BUILTIN_PREFIX) }
+                .map { it.removePrefix(AppLauncher.BUILTIN_PREFIX) }
+                .toSet()
         }
         val extra = BUILT_INS.filter { it.id !in onGrid }
         if (extra.isNotEmpty()) {

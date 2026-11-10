@@ -71,6 +71,29 @@ object AppLauncher {
 
     const val BUILTIN_PREFIX = "builtin:"
 
+    data class SlotInfo(val label: String, val icon: LineIcon?, val letter: String)
+
+    /** Nom et icône d'une case de l'accueil, ou null si la case est vide / l'app a disparu. */
+    fun slotInfo(ctx: Context, slot: String): SlotInfo? {
+        if (slot.isBlank()) return null
+        if (slot.startsWith(BUILTIN_PREFIX)) {
+            val b = BUILT_INS.firstOrNull { it.id == slot.removePrefix(BUILTIN_PREFIX) } ?: return null
+            val short = when (b.id) { "phone" -> "Appel"; "memos" -> "Mémos"; "reminders" -> "Rappels"; else -> b.label }
+            return SlotInfo(short, b.icon, "")
+        }
+        if (!isInstalled(ctx, slot)) return null
+        val l = label(ctx, slot)
+        return SlotInfo(l, null, l.firstOrNull()?.uppercase() ?: "?")
+    }
+
+    fun launchSlot(ctx: Context, prefs: Prefs, slot: String, onBlocked: (String) -> Unit) {
+        when {
+            slot.isBlank() -> {}
+            slot.startsWith(BUILTIN_PREFIX) -> start(ctx, ToolsActivity.intent(ctx, slot.removePrefix(BUILTIN_PREFIX)))
+            else -> launchPackage(ctx, prefs, slot, onBlocked)
+        }
+    }
+
     /** Retourne false si aucune app n'est disponible pour ce bouton (il faut en choisir une). */
     fun launchTile(ctx: Context, prefs: Prefs, tile: Tile, onBlocked: (String) -> Unit): Boolean {
         val chosen = prefs.buttonTarget(tile.key)

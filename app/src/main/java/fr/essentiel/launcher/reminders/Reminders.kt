@@ -198,6 +198,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             ReminderScheduler.rescheduleAll(context)
             fr.essentiel.launcher.clock.AlarmScheduler.rescheduleAll(context)
+            fr.essentiel.launcher.lock.LockService.ensure(context)
         }
     }
 }

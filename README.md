@@ -57,6 +57,17 @@ par-dessus l'ancienne (la clé de signature est fixe : `app/essentiel.keystore`)
 Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut). On peut aussi les mettre
 à la place d'un bouton de l'accueil : Réglages › Boutons.
 
+## Nouveau en 0.4
+
+- **Favoris de l'accueil** : appui long sur une case → nombre de cases (4, 8, 12), ordre (‹ ›), app de chaque case.
+- **Écran de verrouillage Essentiel** (Réglages › Écran de verrouillage) : heure, date, météo, prochain réveil,
+  événement et rappel, lampe torche, photo. Glisser vers le haut ; le code Android reste demandé ensuite.
+  Nécessite « Afficher par-dessus les autres apps ».
+- **Appels** : choix de la SIM (double SIM) quand Essentiel est l'app Téléphone, lancement d'appel plus fiable.
+- **Messages** : nouvelle mise en page (bulles groupées, séparateurs de jour, barre de saisie).
+- **Carte** : points d'intérêt affichés et touchables, écran de recherche, catégories (restaurants, boulangeries…),
+  favoris, récents, partage d'un lieu, heure d'arrivée, zoom +/–.
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.CallLog
 import android.provider.Telephony
+import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.widget.Toast
 
@@ -23,21 +24,48 @@ data class CallEntry(
 
 object PhoneActions {
 
-    /** Lance un appel (avec CALL_PHONE), sinon ouvre le clavier. */
-    fun call(ctx: Context, number: String) {
-        if (number.isBlank()) return
+    /**
+     * Lance un appel.
+     * - Si Essentiel est l'app Téléphone par défaut : on passe par Telecom (notre écran d'appel s'affiche),
+     *   avec la SIM par défaut si elle est réglée (sinon notre écran propose de choisir la SIM).
+     * - Sinon : on demande à Android d'appeler, et c'est l'écran d'appel du système qui s'affiche.
+     */
+    fun call(ctx: Context, rawNumber: String) {
+        val number = rawNumber.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+        if (number.isBlank()) {
+            Toast.makeText(ctx, "Tape un numéro", Toast.LENGTH_SHORT).show(); return
+        }
+        if (ctx.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(ctx, "Autorise les appels dans les réglages d'Essentiel", Toast.LENGTH_LONG).show()
+            ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
         val uri = Uri.fromParts("tel", number, null)
-        if (ctx.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-            try {
-                ctx.getSystemService(TelecomManager::class.java).placeCall(uri, Bundle())
-                return
-            } catch (e: Exception) { }
-        }
         try {
-            ctx.startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            if (isDefaultDialer(ctx)) {
+                val tm = ctx.getSystemService(TelecomManager::class.java)
+                val extras = Bundle()
+                try {
+                    tm.getDefaultOutgoingPhoneAccount("tel")?.let {
+                        extras.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, it)
+                    }
+                } catch (e: SecurityException) { }
+                tm.placeCall(uri, extras)
+                ctx.startActivity(Intent(ctx, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } else {
+                ctx.startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
         } catch (e: Exception) {
-            Toast.makeText(ctx, "Impossible de lancer l'appel", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Impossible de lancer l'appel : ${e.message ?: "erreur"}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    /** Les SIM disponibles pour appeler (nom affiché + identifiant). */
+    fun simAccounts(ctx: Context): List<Pair<String, PhoneAccountHandle>> = try {
+        val tm = ctx.getSystemService(TelecomManager::class.java)
+        tm.callCapablePhoneAccounts.map { h -> (tm.getPhoneAccount(h)?.label?.toString() ?: "SIM") to h }
+    } catch (e: SecurityException) {
+        emptyList()
     }
 
     fun isDefaultDialer(ctx: Context): Boolean =

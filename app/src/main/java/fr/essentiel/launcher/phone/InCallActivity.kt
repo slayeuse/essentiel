@@ -112,8 +112,12 @@ private fun InCallScreen(onEnded: () -> Unit, onProximity: (Boolean) -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
 
-    val ended = calls.isEmpty() || calls.all { CallManager.state(it) == Call.STATE_DISCONNECTED }
+    // L'écran peut s'ouvrir juste avant qu'Android ne lui transmette l'appel : on attend de l'avoir vu.
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(calls.size) { if (calls.isNotEmpty()) seen = true }
+    val ended = seen && (calls.isEmpty() || calls.all { CallManager.state(it) == Call.STATE_DISCONNECTED })
     LaunchedEffect(ended) { if (ended) onEnded() }
+    LaunchedEffect(Unit) { delay(10_000); if (!seen) onEnded() }
 
     val speakerOn = audio?.route == CallAudioState.ROUTE_SPEAKER
     val shown = if (ringing != null && main === ringing) ringing else main
@@ -132,7 +136,7 @@ private fun InCallScreen(onEnded: () -> Unit, onProximity: (Boolean) -> Unit) {
     ) {
         if (shown == null) {
             Spacer(Modifier.weight(1f))
-            Text("appel terminé", style = serifStyle(34))
+            Text(if (seen) "appel terminé" else "appel…", style = serifStyle(34))
             Spacer(Modifier.weight(1f))
             return@Column
         }
@@ -144,6 +148,7 @@ private fun InCallScreen(onEnded: () -> Unit, onProximity: (Boolean) -> Unit) {
         val state = CallManager.state(shown)
         val status = when (state) {
             Call.STATE_RINGING -> "appel entrant"
+            Call.STATE_SELECT_PHONE_ACCOUNT -> "avec quelle SIM ?"
             Call.STATE_DIALING, Call.STATE_CONNECTING -> "appel…"
             Call.STATE_HOLDING -> "en attente"
             Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> "appel terminé"
@@ -181,7 +186,28 @@ private fun InCallScreen(onEnded: () -> Unit, onProximity: (Boolean) -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        if (state == Call.STATE_RINGING) {
+        if (state == Call.STATE_SELECT_PHONE_ACCOUNT) {
+            // Double SIM : Android demande avec quelle carte appeler
+            val sims = remember { PhoneActions.simAccounts(ctx) }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (sims.isEmpty()) {
+                    Text("Aucune SIM disponible (autorise « Téléphone » dans les réglages Android).", style = bodyStyle(15, Palette.Muted))
+                }
+                sims.forEach { (label, handle) ->
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Palette.Accent)
+                            .clickable { shown.phoneAccountSelected(handle, false) }.padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(label, style = bodyStyle(17, Color.White, bold = true)) }
+                }
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Palette.Card)
+                        .border(1.dp, Palette.Line, RoundedCornerShape(50))
+                        .clickable { shown.disconnect() }.padding(16.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("annuler", style = bodyStyle(17, bold = true)) }
+            }
+        } else if (state == Call.STATE_RINGING) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 RoundButton(Icons.phone, Palette.Accent, "refuser", rotate = 135f) { CallManager.hangup(shown) }
                 RoundButton(Icons.phone, Green, "répondre") { CallManager.answer(shown) }
