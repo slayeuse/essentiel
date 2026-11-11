@@ -213,6 +213,7 @@ private fun CameraContent(nav: Nav) {
     DisposableEffect(Unit) { onDispose { recording?.stop() } }
 
     val canHalf = cams.wideId != null || minZoom < 0.99f
+    var showHalfHelp by remember { mutableStateOf(false) }
     // Facteur affiché : 0,5 sur l'ultra grand-angle
     val shownFactor = if (useWide && cams.wideId != null) 0.5f * zoom else zoom
 
@@ -365,7 +366,7 @@ private fun CameraContent(nav: Nav) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     val options = buildList {
-                        if (canHalf) add(0.5f)
+                        add(0.5f) // toujours visible : si le téléphone le bloque, on explique et on propose l'appareil ASUS
                         add(1f); add(2f)
                         if (maxZoom >= 5f) add(5f)
                     }
@@ -377,7 +378,9 @@ private fun CameraContent(nav: Nav) {
                             Modifier.size(40.dp).clip(CircleShape)
                                 .background(if (active) Color.Black.copy(alpha = 0.55f) else Color.Transparent)
                                 .clickable {
-                                    if (f == 0.5f) {
+                                    if (f == 0.5f && !canHalf) {
+                                        showHalfHelp = true
+                                    } else if (f == 0.5f) {
                                         if (cams.wideId != null) { if (!useWide) useWide = true else setZoom(1f) } else setZoom(minZoom)
                                     } else {
                                         if (useWide) { useWide = false; scope.launch { delay(600); setZoom(f) } } else setZoom(f)
@@ -441,6 +444,38 @@ private fun CameraContent(nav: Nav) {
             }
         }
     }
+
+    if (showHalfHelp) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showHalfHelp = false },
+            containerColor = Palette.Bg,
+            title = { Text("Grand-angle 0,5", style = serifStyle(24)) },
+            text = {
+                Text(
+                    "Ton téléphone ne laisse pas les autres apps utiliser la caméra grand-angle : ASUS la réserve à son " +
+                        "appareil photo. Tu peux l'ouvrir pour cette photo ; elle arrivera quand même dans la galerie.",
+                    style = bodyStyle(15)
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showHalfHelp = false
+                    val i = systemCameraIntent(ctx)
+                    if (i != null) ctx.startActivity(i) else Toast.makeText(ctx, "Aucun autre appareil photo trouvé", Toast.LENGTH_SHORT).show()
+                }) { Text("Ouvrir l'appareil ASUS") }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { showHalfHelp = false }) { Text("Annuler") } },
+        )
+    }
+}
+
+/** L'appareil photo du fabricant (ASUS), qui a accès au grand-angle. */
+private fun systemCameraIntent(ctx: Context): android.content.Intent? {
+    val base = android.content.Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+    val apps = ctx.packageManager.queryIntentActivities(base, 0).map { it.activityInfo.packageName }
+        .filter { it != ctx.packageName }
+    val pkg = apps.firstOrNull { "asus" in it } ?: apps.firstOrNull() ?: return null
+    return base.setPackage(pkg).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
 @Composable

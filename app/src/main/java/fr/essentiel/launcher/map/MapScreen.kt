@@ -128,6 +128,10 @@ private fun MapContent(nav: Nav) {
     var me by remember { mutableStateOf<Location?>(null) }
     var follow by remember { mutableStateOf(true) }
     var firstFix by remember { mutableStateOf(true) }
+    var centeredAccuracy by remember { mutableStateOf(9999f) }
+    var locationOn by remember { mutableStateOf(LocationSource.isLocationOn(ctx)) }
+    var showAlternatives by remember { mutableStateOf(false) }
+    var nowTick by remember { mutableStateOf(0L) }
 
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -181,7 +185,12 @@ private fun MapContent(nav: Nav) {
     fun showResults(list: List<Place>) = MapStyle.setGeoJson(style, MapStyle.SRC_RESULTS, if (list.isEmpty()) MapApi.EMPTY else MapApi.pointsJson(list))
     fun clearRoute() { routes = emptyList(); selectedRoute = 0; MapStyle.setGeoJson(style, MapStyle.SRC_ROUTE, MapApi.EMPTY) }
     fun drawRoutes() = MapStyle.setGeoJson(
-        style, MapStyle.SRC_ROUTE, if (routes.isEmpty()) MapApi.EMPTY else MapApi.routesJson(routes, selectedRoute)
+        style, MapStyle.SRC_ROUTE,
+        when {
+            routes.isEmpty() -> MapApi.EMPTY
+            showAlternatives -> MapApi.routesJson(routes, selectedRoute)
+            else -> MapApi.routesJson(listOf(routes[selectedRoute.coerceIn(0, routes.lastIndex)]), 0)
+        }
     )
 
     fun fitPoints(points: List<Pair<Double, Double>>, bottom: Int = 520) {
@@ -237,9 +246,10 @@ private fun MapContent(nav: Nav) {
             }
             loadingRoute = false
             routes = list; selectedRoute = 0
+            showAlternatives = false
             drawRoutes()
             if (list.isEmpty()) Toast.makeText(ctx, "Itinéraire introuvable (connexion ?)", Toast.LENGTH_SHORT).show()
-            else if (fit) fitPoints(list.flatMap { it.points })
+            else if (fit) fitPoints(list.first().points)
         }
     }
 
@@ -292,9 +302,12 @@ private fun MapContent(nav: Nav) {
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.setAttributionMargins(20, 0, 0, 20)
             val start = me
-            m.cameraPosition = if (start != null)
-                CameraPosition.Builder().target(LatLng(start.latitude, start.longitude)).zoom(15.0).build()
-            else CameraPosition.Builder().target(LatLng(46.6, 2.4)).zoom(5.0).build()
+            val saved = LocationSource.last(ctx)
+            m.cameraPosition = when {
+                start != null -> CameraPosition.Builder().target(LatLng(start.latitude, start.longitude)).zoom(15.0).build()
+                saved != null -> CameraPosition.Builder().target(LatLng(saved.first, saved.second)).zoom(14.0).build()
+                else -> CameraPosition.Builder().target(LatLng(46.6, 2.4)).zoom(5.0).build()
+            }
             m.setStyle(Style.Builder().fromUri(MapStyle.STYLE_URL)) { s ->
                 MapStyle.apply(s)
                 if (MapPlaces.showTraffic(ctx)) MapStyle.setTraffic(s, MapPlaces.tomtomKey(ctx))
@@ -368,9 +381,10 @@ private fun MapContent(nav: Nav) {
     // Le service de localisation de Google (le même que les autres apps) est bien plus précis.
     DisposableEffect(Unit) {
         val stop = LocationSource.start(ctx) { loc ->
-            val prev = me
-            val fresher = prev == null || loc.time - prev.time > 4_000
-            if (fresher || loc.accuracy <= prev!!.accuracy + 5) me = loc
+            if (LocationSource.better(loc, me)) {
+                me = loc
+                if (loc.accuracy < 100) LocationSource.saveLast(ctx, loc)
+            }
         }
         onDispose { stop() }
     }
@@ -387,8 +401,14 @@ private fun MapContent(nav: Nav) {
         val moving = loc.hasBearing() && loc.speed > 2f
         MapStyle.setGeoJson(style, MapStyle.SRC_ME, MapApi.meJson(loc.latitude, loc.longitude, if (moving) loc.bearing else heading))
         val m = map ?: return@LaunchedEffect
+        if (!firstFix && follow && !navigating && centeredAccuracy > 150f && loc.accuracy < 60f) {
+            centeredAccuracy = loc.accuracy
+            m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 16.0), 600)
+            return@LaunchedEffect
+        }
         if (firstFix) {
             firstFix = false
+            centeredAccuracy = loc.accuracy
             m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 15.0), 600)
             return@LaunchedEffect
         }
@@ -512,6 +532,26 @@ private fun MapContent(nav: Nav) {
                     Box(Modifier.clip(CircleShape).clickable { showSettings = true }.padding(8.dp)) {
                         LineIconView(Icons.gear, Palette.Muted, 22.dp)
                     }
+                }
+                LaunchedEffect(Unit) { while (true) { nowTick = System.currentTimeMillis(); locationOn = LocationSource.isLocationOn(ctx); delay(3000) } }
+                val loc = me
+                val status = when {
+                    !locationOn -> "localisation désactivée · toucher pour l'activer"
+                    loc == null -> "recherche de ta position…"
+                    loc.accuracy > 150 -> "position approximative (± ${loc.accuracy.toInt()} m), affinage…"
+                    else -> null
+                }
+                if (status != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        status, style = bodyStyle(13, Color.White, bold = true),
+                        modifier = Modifier.padding(horizontal = 14.dp).clip(RoundedCornerShape(50))
+                            .background(if (!locationOn) Palette.Accent else Palette.Ink.copy(alpha = 0.75f))
+                            .clickable(enabled = !locationOn) {
+                                ctx.startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
                 // Catégories rapides
@@ -674,7 +714,16 @@ private fun MapContent(nav: Nav) {
                         }
                         Spacer(Modifier.height(12.dp))
                         // Choix parmi plusieurs itinéraires
-                        if (!loadingRoute && routes.size > 1) {
+                        if (!loadingRoute && routes.size > 1 && !showAlternatives) {
+                            Text(
+                                "voir ${routes.size - 1} autre${if (routes.size > 2) "s" else ""} trajet${if (routes.size > 2) "s" else ""}",
+                                style = bodyStyle(14, Palette.Accent, bold = true),
+                                modifier = Modifier.clickable {
+                                    showAlternatives = true; drawRoutes(); fitPoints(routes.flatMap { it.points })
+                                }.padding(bottom = 10.dp)
+                            )
+                        }
+                        if (!loadingRoute && routes.size > 1 && showAlternatives) {
                             routes.forEachIndexed { i, alt ->
                                 val sel = i == selectedRoute
                                 val shape = RoundedCornerShape(18.dp)

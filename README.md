@@ -87,6 +87,15 @@ Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut).
 - **Météo** : nouvelle app (toucher la météo sur l'accueil, ou « mes apps ») : maintenant, heure par heure,
   10 jours, ressenti, humidité, vent, UV, soleil, pression, visibilité, pluie, qualité de l'air, plusieurs villes.
 
+## Nouveau en 0.7
+
+- **Clavier Essentiel** (Réglages › Clavier Essentiel : 1. activer, 2. choisir) : AZERTY, accents en appui long,
+  chiffres / symboles, emojis, suggestions (dictionnaire français + mots appris), glisser sur espace pour déplacer le curseur,
+  touche entrée adaptée (envoyer, chercher…), pavé numérique automatique. Bouton globe = changer de clavier.
+- **Carte** : un seul trajet affiché (« voir les autres trajets » si besoin) ; position plus fiable
+  (Google + GPS en même temps, position fraîche à chaque ouverture, état de la position affiché).
+- **Photo** : le bouton 0,5 explique que ASUS bloque le grand-angle et ouvre l'appareil photo ASUS.
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

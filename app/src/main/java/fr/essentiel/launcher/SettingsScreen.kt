@@ -146,6 +146,25 @@ fun SettingsScreen(
                 }
             }
 
+            item { Section("Clavier Essentiel") }
+            item {
+                val imm = ctx.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                val enabled = remember(resumeTick, refresh) {
+                    imm?.enabledInputMethodList?.any { it.packageName == ctx.packageName } == true
+                }
+                SettingRow(
+                    "1. Activer le clavier",
+                    if (enabled) "activé" else "Réglages Android › active « Essentiel »"
+                ) {
+                    AppLauncher.start(ctx, Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+            item {
+                SettingRow("2. Choisir le clavier", "sélectionne « Essentiel » dans la liste") {
+                    ctx.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showInputMethodPicker()
+                }
+            }
+
             item { Section("Écran de verrouillage") }
             item {
                 val on = remember(resumeTick, refresh) { prefs.lockScreen }

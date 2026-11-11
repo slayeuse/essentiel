@@ -166,6 +166,20 @@
         <receiver android:name=".messages.SmsReplyReceiver" android:exported="false" />
         <receiver android:name=".messages.SmsMarkReadReceiver" android:exported="false" />
 
+        <!-- Clavier Essentiel -->
+        <service
+            android:name=".keyboard.EssentielKeyboard"
+            android:exported="true"
+            android:label="Essentiel"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
         <!-- Écran de verrouillage -->
         <activity
             android:name=".lock.LockActivity"

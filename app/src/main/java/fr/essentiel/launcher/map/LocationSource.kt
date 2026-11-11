@@ -15,6 +15,9 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.Surface
 import android.view.WindowManager
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -22,56 +25,92 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 
 /**
- * Position en direct.
- * 1) Service de localisation de Google (GPS + Wi-Fi + antennes, comme les autres apps) si disponible.
- * 2) Sinon, GPS d'Android. Les vieilles positions mémorisées (plus de 2 min) sont ignorées.
- * Retourne une fonction pour arrêter.
+ * Position en direct, en combinant DEUX sources en même temps :
+ * 1) le service de localisation de Google (GPS + Wi-Fi + antennes, comme les autres apps) ;
+ * 2) le GPS d'Android directement.
+ * On demande aussi une position toute fraîche à chaque ouverture. Les positions mémorisées
+ * de plus de 2 minutes sont ignorées. Retourne une fonction pour tout arrêter.
  */
 object LocationSource {
+
+    fun isLocationOn(ctx: Context): Boolean = try {
+        ctx.getSystemService(LocationManager::class.java)?.isLocationEnabled ?: true
+    } catch (e: Exception) { true }
+
+    /** Garde la meilleure position entre deux sources. */
+    fun better(new: Location, old: Location?): Boolean {
+        if (old == null) return true
+        val age = new.time - old.time
+        if (age > 8_000) return true                         // l'ancienne est périmée
+        if (age < -8_000) return false                       // la nouvelle est plus vieille
+        return new.accuracy <= old.accuracy + 10             // à peu près aussi précise et plus récente
+    }
 
     @SuppressLint("MissingPermission")
     fun start(ctx: Context, onLocation: (Location) -> Unit): () -> Unit {
         val fine = ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = ctx.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return {}
+        val stops = mutableListOf<() -> Unit>()
+        val recent = { l: Location -> System.currentTimeMillis() - l.time < 2 * 60_000L }
 
-        // ----- Google (fusionnée) -----
+        // ----- 1) Google (fusionnée) -----
         try {
-            val client = LocationServices.getFusedLocationProviderClient(ctx)
-            val request = LocationRequest.Builder(
-                if (fine) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY, 1000L
-            ).setMinUpdateIntervalMillis(500L).setWaitForAccurateLocation(false).build()
-            val callback = object : LocationCallback() {
-                override fun onLocationResult(result: LocationResult) {
-                    result.lastLocation?.let(onLocation)
+            val ok = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ctx) == ConnectionResult.SUCCESS
+            if (ok) {
+                val client = LocationServices.getFusedLocationProviderClient(ctx)
+                val priority = if (fine) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+                // position toute fraîche à l'ouverture
+                client.getCurrentLocation(
+                    CurrentLocationRequest.Builder().setPriority(priority).setMaxUpdateAgeMillis(0).build(), null
+                ).addOnSuccessListener { loc -> if (loc != null) onLocation(loc) }
+                val request = LocationRequest.Builder(priority, 1000L)
+                    .setMinUpdateIntervalMillis(500L).setWaitForAccurateLocation(false).build()
+                val callback = object : LocationCallback() {
+                    override fun onLocationResult(result: LocationResult) { result.lastLocation?.let(onLocation) }
                 }
+                client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                stops += { try { client.removeLocationUpdates(callback) } catch (e: Exception) { } }
             }
-            client.lastLocation.addOnSuccessListener { loc ->
-                if (loc != null && System.currentTimeMillis() - loc.time < 2 * 60_000L) onLocation(loc)
-            }
-            client.requestLocationUpdates(request, callback, Looper.getMainLooper())
-            return { try { client.removeLocationUpdates(callback) } catch (e: Exception) { } }
-        } catch (e: Throwable) {
-            // pas de services Google : on continue avec le GPS d'Android
-        }
+        } catch (e: Throwable) { }
 
-        // ----- GPS d'Android -----
-        val lm = ctx.getSystemService(LocationManager::class.java) ?: return {}
-        val listener = object : LocationListener {
-            override fun onLocationChanged(location: Location) = onLocation(location)
-            @Deprecated("API 29") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
-        }
+        // ----- 2) GPS d'Android (en parallèle) -----
         try {
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-                .mapNotNull { p -> try { lm.getLastKnownLocation(p) } catch (e: Exception) { null } }
-                .filter { System.currentTimeMillis() - it.time < 2 * 60_000L }
-                .minByOrNull { it.accuracy }?.let(onLocation)
-            if (fine) lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, listener, Looper.getMainLooper())
-            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
+            val lm = ctx.getSystemService(LocationManager::class.java)
+            if (lm != null) {
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(location: Location) = onLocation(location)
+                    @Deprecated("API 29") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                }
+                listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+                    .mapNotNull { p -> try { lm.getLastKnownLocation(p) } catch (e: Exception) { null } }
+                    .filter(recent)
+                    .minByOrNull { it.accuracy }?.let(onLocation)
+                if (fine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, Looper.getMainLooper())
+                }
+                if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 0f, listener, Looper.getMainLooper())
+                }
+                stops += { try { lm.removeUpdates(listener) } catch (e: Exception) { } }
+            }
         } catch (e: Exception) { }
-        return { try { lm.removeUpdates(listener) } catch (e: Exception) { } }
+
+        return { stops.forEach { it() } }
+    }
+
+    // ---------- Dernière bonne position (pour ouvrir la carte au bon endroit) ----------
+    fun saveLast(ctx: Context, l: Location) {
+        ctx.getSharedPreferences("carte", Context.MODE_PRIVATE).edit()
+            .putFloat("last_lat", l.latitude.toFloat()).putFloat("last_lon", l.longitude.toFloat()).apply()
+    }
+
+    fun last(ctx: Context): Pair<Double, Double>? {
+        val sp = ctx.getSharedPreferences("carte", Context.MODE_PRIVATE)
+        if (!sp.contains("last_lat")) return null
+        return sp.getFloat("last_lat", 0f).toDouble() to sp.getFloat("last_lon", 0f).toDouble()
     }
 }
 
