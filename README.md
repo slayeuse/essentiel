@@ -81,6 +81,12 @@ Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut).
 - **Icônes** : les apps installées ont leur icône ; modifiable (icône Essentiel ou initiale) en modifiant la case.
 - **Rappels, Contacts, Mémos, Horloge, Téléphone** : nouvelle présentation. Plus de flèche retour (geste retour d'Android).
 
+## Nouveau en 0.6
+
+- **Carte** : bouton « trafic » sur la carte pour l'afficher ou le masquer.
+- **Météo** : nouvelle app (toucher la météo sur l'accueil, ou « mes apps ») : maintenant, heure par heure,
+  10 jours, ressenti, humidité, vent, UV, soleil, pression, visibilité, pluie, qualité de l'air, plusieurs villes.
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

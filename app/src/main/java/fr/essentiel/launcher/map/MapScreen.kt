@@ -534,6 +534,18 @@ private fun MapContent(nav: Nav) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (searching) MapRoundButton(Icons.clock, Palette.Muted) {}
+            var trafficOn by remember { mutableStateOf(MapPlaces.showTraffic(ctx) && MapPlaces.tomtomKey(ctx).isNotBlank()) }
+            MapRoundButton(Icons.traffic, if (trafficOn) Palette.Accent else Palette.Ink) {
+                val key = MapPlaces.tomtomKey(ctx)
+                if (key.isBlank()) {
+                    Toast.makeText(ctx, "Ajoute une clé TomTom (roue dentée) pour voir le trafic", Toast.LENGTH_LONG).show()
+                } else {
+                    trafficOn = !trafficOn
+                    MapPlaces.setShowTraffic(ctx, trafficOn)
+                    MapStyle.setTraffic(style, if (trafficOn) key else null)
+                    Toast.makeText(ctx, if (trafficOn) "Trafic affiché" else "Trafic masqué", Toast.LENGTH_SHORT).show()
+                }
+            }
             MapRoundButton(Icons.plus, Palette.Ink) { map?.animateCamera(CameraUpdateFactory.zoomIn(), 250) }
             MapRoundButton(minusIcon, Palette.Ink) { map?.animateCamera(CameraUpdateFactory.zoomOut(), 250) }
             MapRoundButton(Icons.locate, if (follow) Palette.Accent else Palette.Ink) {

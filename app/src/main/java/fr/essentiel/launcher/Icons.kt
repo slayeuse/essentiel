@@ -157,6 +157,21 @@ object Icons {
     val book = LineIcon(listOf("M4 19.5A2.5 2.5 0 0 1 6.5 17H20", "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"))
     val train = LineIcon(listOf("M6 3h12a2 2 0 0 1 2 2v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2z", "M4 11h16", "M8 22l2-4", "M16 22l-2-4"), dots = listOf(8f to 15f, 16f to 15f))
     val mail = LineIcon(listOf("M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M22 6l-10 7L2 6"))
+    val traffic = LineIcon(
+        listOf("M9 2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M7 6H4", "M7 12H4", "M7 18H4", "M17 6h3", "M17 12h3", "M17 18h3"),
+        circles = listOf(Triple(12f, 6.5f, 1.6f), Triple(12f, 12f, 1.6f), Triple(12f, 17.5f, 1.6f))
+    )
+    val cloudSun = LineIcon(
+        listOf("M12 2v2", "M4.93 4.93l1.41 1.41", "M20 12h2", "M19.07 4.93l-1.41 1.41", "M15.95 12.65a4 4 0 0 0-5.93-4.24",
+            "M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6z")
+    )
+    val drop = LineIcon(listOf("M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"))
+    val wind = LineIcon(listOf("M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2", "M9.6 4.6A2 2 0 1 1 11 8H2", "M12.6 19.4A2 2 0 1 0 14 16H2"))
+    val thermometer = LineIcon(listOf("M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"))
+    val gauge = LineIcon(listOf("M12 14l4-4", "M3.34 19a10 10 0 1 1 17.32 0"))
+    val eye = LineIcon(listOf("M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"), circles = listOf(Triple(12f, 12f, 3f)))
+    val sunrise = LineIcon(listOf("M12 2v8", "M4.93 10.93l1.41 1.41", "M2 18h2", "M20 18h2", "M19.07 10.93l-1.41 1.41", "M22 22H2", "M8 6l4-4 4 4", "M16 18a4 4 0 0 0-8 0"))
+    val leaf = LineIcon(listOf("M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z", "M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"))
     val map = LineIcon(
         listOf("M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14", "M15 6v14")
     )

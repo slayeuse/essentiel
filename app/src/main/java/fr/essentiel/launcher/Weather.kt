@@ -112,8 +112,9 @@ object Weather {
     }
 
     fun icon(code: Int, isDay: Boolean): LineIcon = when (code) {
-        0, 1 -> if (isDay) Icons.sun else Icons.moon
-        2, 3 -> Icons.cloud
+        0 -> if (isDay) Icons.sun else Icons.moon
+        1, 2 -> if (isDay) Icons.cloudSun else Icons.moon
+        3 -> Icons.cloud
         45, 48 -> Icons.fog
         in 51..67, in 80..82 -> Icons.rain
         in 71..77, 85, 86 -> Icons.snow

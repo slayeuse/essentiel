@@ -18,6 +18,7 @@ import fr.essentiel.launcher.camera.CameraScreen
 import fr.essentiel.launcher.clock.ClockScreen
 import fr.essentiel.launcher.map.MapScreen
 import fr.essentiel.launcher.memos.MemosScreen
+import fr.essentiel.launcher.weather.WeatherScreen
 import fr.essentiel.launcher.contacts.ContactDetailScreen
 import fr.essentiel.launcher.contacts.ContactEditScreen
 import fr.essentiel.launcher.contacts.ContactsScreen
@@ -49,6 +50,7 @@ sealed class Route {
     data object Clock : Route()
     data object Memos : Route()
     data object Map : Route()
+    data object Weather : Route()
 }
 
 /** Les apps intégrées, avec leur identifiant (utilisé par les boutons et la liste « mes apps »). */
@@ -65,6 +67,7 @@ val BUILT_INS = listOf(
     BuiltIn("clock", "Horloge", Icons.clock),
     BuiltIn("memos", "Mémos vocaux", Icons.mic),
     BuiltIn("map", "Carte", Icons.map),
+    BuiltIn("weather", "Météo", Icons.cloudSun),
 )
 
 class Nav(private val stack: SnapshotStateList<Route>, private val finish: () -> Unit) {
@@ -123,6 +126,7 @@ class ToolsActivity : ComponentActivity() {
             "clock" -> Route.Clock
             "memos" -> Route.Memos
             "map" -> Route.Map
+            "weather" -> Route.Weather
             else -> Route.Phone()
         }
     }
@@ -169,6 +173,7 @@ fun ToolsHost(stack: SnapshotStateList<Route>, nav: Nav) {
             Route.Clock -> ClockScreen(nav)
             Route.Memos -> MemosScreen(nav)
             Route.Map -> MapScreen(nav)
+            Route.Weather -> WeatherScreen(nav)
         }
     }
 }

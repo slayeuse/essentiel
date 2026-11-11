@@ -117,8 +117,13 @@ fun HomeScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // ----- Météo -----
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // ----- Météo (toucher = app Météo) -----
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable(interactionSource = null, indication = null) {
+                if (Weather.hasPermission(ctx)) AppLauncher.start(ctx, ToolsActivity.intent(ctx, "weather"))
+            }
+        ) {
             val w = weather
             if (!Weather.hasPermission(ctx)) {
                 LineIconView(Icons.sun, Palette.Accent, 24.dp)

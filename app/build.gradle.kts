@@ -12,8 +12,8 @@ android {
         applicationId = "fr.essentiel.launcher"
         minSdk = 29          // Android 10 (ASUS Zenfone 5Z)
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 6
+        versionName = "0.6"
         // Le Zenfone 5Z est en 64 bits : on n'embarque que cette version de la carte (APK plus léger)
         ndk { abiFilters += listOf("arm64-v8a") }
         // Clé TomTom : vient du secret GitHub TOMTOM_KEY (jamais écrite dans le code)
