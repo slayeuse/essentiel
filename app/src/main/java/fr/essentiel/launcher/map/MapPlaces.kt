@@ -49,4 +49,22 @@ object MapPlaces {
     }
 
     fun clearRecents(ctx: Context) = write(ctx, "recents", emptyList())
+
+    // ---------- Réglages de la carte ----------
+    fun voice(ctx: Context) = sp(ctx).getBoolean("voix", true)
+    fun setVoice(ctx: Context, on: Boolean) { sp(ctx).edit().putBoolean("voix", on).apply(); version.intValue++ }
+
+    /** Clé collée dans l'app, sinon celle fournie à la compilation (secret GitHub TOMTOM_KEY). */
+    fun tomtomKey(ctx: Context): String =
+        sp(ctx).getString("tomtom", "").orEmpty().ifBlank { fr.essentiel.launcher.BuildConfig.TOMTOM_KEY }
+    fun setTomtomKey(ctx: Context, key: String) { sp(ctx).edit().putString("tomtom", key.trim()).apply(); version.intValue++ }
+
+    fun showTraffic(ctx: Context) = sp(ctx).getBoolean("trafic", true)
+    fun setShowTraffic(ctx: Context, on: Boolean) { sp(ctx).edit().putBoolean("trafic", on).apply(); version.intValue++ }
+
+    fun avoid(ctx: Context): Set<Avoid> =
+        sp(ctx).getString("eviter", "").orEmpty().split(",").mapNotNull { n -> Avoid.entries.firstOrNull { it.name == n } }.toSet()
+    fun setAvoid(ctx: Context, set: Set<Avoid>) {
+        sp(ctx).edit().putString("eviter", set.joinToString(",") { it.name }).apply(); version.intValue++
+    }
 }

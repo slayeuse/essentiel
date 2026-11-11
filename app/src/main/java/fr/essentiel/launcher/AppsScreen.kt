@@ -128,6 +128,8 @@ fun AppsScreen(
                         .padding(vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    AppIconView(row.pkg, 30.dp)
+                    Spacer(Modifier.width(14.dp))
                     Text(
                         row.label.lowercase(),
                         style = bodyStyle(22, if (row.blocked) Palette.Muted else Palette.Ink),

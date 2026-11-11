@@ -46,6 +46,7 @@ import fr.essentiel.launcher.Icons
 import fr.essentiel.launcher.Nav
 import fr.essentiel.launcher.Palette
 import fr.essentiel.launcher.PillButton
+import fr.essentiel.launcher.SegmentedTabs
 import fr.essentiel.launcher.ToolScaffold
 import fr.essentiel.launcher.bodyStyle
 import fr.essentiel.launcher.serifStyle
@@ -81,15 +82,8 @@ fun ClockScreen(nav: Nav) {
             editing = Alarm(System.currentTimeMillis(), 7, 0, setOf(1, 2, 3, 4, 5), "", true)
         }
     }) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-            listOf("réveils", "minuteur", "chrono").forEachIndexed { i, t ->
-                Text(
-                    t, style = bodyStyle(17, if (tab == i) Palette.Ink else Palette.Muted, bold = tab == i),
-                    modifier = Modifier.clickable { tab = i }.padding(vertical = 6.dp)
-                )
-            }
-        }
-        Spacer(Modifier.height(10.dp))
+        SegmentedTabs(listOf("réveils", "minuteur", "chrono"), tab) { tab = it }
+        Spacer(Modifier.height(16.dp))
         when (tab) {
             0 -> AlarmsTab(onEdit = { editing = it })
             1 -> TimerTab()
@@ -108,7 +102,10 @@ private fun AlarmsTab(onEdit: (Alarm) -> Unit) {
     LazyColumn {
         items(alarms, key = { it.id }) { a ->
             Row(
-                Modifier.fillMaxWidth().clickable { onEdit(a) }.padding(vertical = 12.dp),
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(24.dp))
+                    .background(if (a.enabled) Color(0xFFF2EFEA) else Palette.Card)
+                    .border(1.dp, if (a.enabled) Palette.Accent.copy(alpha = 0.45f) else Palette.Line, RoundedCornerShape(24.dp))
+                    .clickable { onEdit(a) }.padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -129,7 +126,6 @@ private fun AlarmsTab(onEdit: (Alarm) -> Unit) {
                     }
                 }
             }
-            Divider()
         }
     }
 }
@@ -255,12 +251,24 @@ private fun TimerTab() {
             }
         } else {
             val left = if (state.running) state.endAt - now else state.remaining
-            Text(formatDuration(left), style = serifStyle(84))
-            Spacer(Modifier.height(16.dp))
-            // Barre de progression
+            // Anneau de progression
             val frac = if (state.total > 0) (left.toFloat() / state.total).coerceIn(0f, 1f) else 0f
-            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Palette.Card)) {
-                Box(Modifier.fillMaxWidth(frac).height(8.dp).clip(RoundedCornerShape(50)).background(Palette.Accent))
+            Box(Modifier.size(270.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val sw = 14.dp.toPx()
+                    val inset = sw / 2
+                    val arcSize = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw)
+                    val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                    drawArc(Palette.Card, 0f, 360f, false, tl, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                    drawArc(
+                        Palette.Accent, -90f, 360f * frac, false, tl, arcSize,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(formatDuration(left), style = serifStyle(60))
+                    Text(if (state.running) "en cours" else "en pause", style = bodyStyle(14, Palette.Muted))
+                }
             }
             Spacer(Modifier.height(20.dp))
             Text(

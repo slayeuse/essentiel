@@ -12,10 +12,12 @@ android {
         applicationId = "fr.essentiel.launcher"
         minSdk = 29          // Android 10 (ASUS Zenfone 5Z)
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.5"
         // Le Zenfone 5Z est en 64 bits : on n'embarque que cette version de la carte (APK plus léger)
         ndk { abiFilters += listOf("arm64-v8a") }
+        // Clé TomTom : vient du secret GitHub TOMTOM_KEY (jamais écrite dans le code)
+        buildConfigField("String", "TOMTOM_KEY", "\"" + (System.getenv("TOMTOM_KEY") ?: "") + "\"")
     }
 
     // Clé fixe : les nouvelles versions s'installent par-dessus l'ancienne sans tout désinstaller.
@@ -43,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -69,4 +72,8 @@ dependencies {
 
     // Carte (moteur MapLibre, tuiles OpenFreeMap / OpenStreetMap)
     implementation("org.maplibre.gl:android-sdk:11.7.0")
+    // Localisation précise (service Google, comme les autres apps)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    // Infos des photos (appareil, lieu, réglages)
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }

@@ -135,7 +135,14 @@ private fun MapContent(nav: Nav) {
     var searching by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf<Panel>(Panel.None) }
     var mode by remember { mutableStateOf(Mode.CAR) }
-    var route by remember { mutableStateOf<RouteResult?>(null) }
+    var routes by remember { mutableStateOf<List<RouteResult>>(emptyList()) }
+    var selectedRoute by remember { mutableIntStateOf(0) }
+    val route: RouteResult? = routes.getOrNull(selectedRoute)
+    val placesVersion = MapPlaces.version.intValue
+    var avoid by remember { mutableStateOf(MapPlaces.avoid(ctx)) }
+    var voiceOn by remember { mutableStateOf(MapPlaces.voice(ctx)) }
+    var showSettings by remember { mutableStateOf(false) }
+    var heading by remember { mutableStateOf(0f) }
     var loadingRoute by remember { mutableStateOf(false) }
     var showSteps by remember { mutableStateOf(false) }
 
@@ -172,7 +179,10 @@ private fun MapContent(nav: Nav) {
     // ---------- Actions ----------
     fun showPin(p: Place?) = MapStyle.setGeoJson(style, MapStyle.SRC_PIN, if (p == null) MapApi.EMPTY else MapApi.pointJson(p.lat, p.lon))
     fun showResults(list: List<Place>) = MapStyle.setGeoJson(style, MapStyle.SRC_RESULTS, if (list.isEmpty()) MapApi.EMPTY else MapApi.pointsJson(list))
-    fun clearRoute() { route = null; MapStyle.setGeoJson(style, MapStyle.SRC_ROUTE, MapApi.EMPTY) }
+    fun clearRoute() { routes = emptyList(); selectedRoute = 0; MapStyle.setGeoJson(style, MapStyle.SRC_ROUTE, MapApi.EMPTY) }
+    fun drawRoutes() = MapStyle.setGeoJson(
+        style, MapStyle.SRC_ROUTE, if (routes.isEmpty()) MapApi.EMPTY else MapApi.routesJson(routes, selectedRoute)
+    )
 
     fun fitPoints(points: List<Pair<Double, Double>>, bottom: Int = 520) {
         val m = map ?: return
@@ -211,23 +221,25 @@ private fun MapContent(nav: Nav) {
         }
     }
 
-    fun speak(text: String) { tts.value?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "essentiel") }
+    fun speak(text: String) {
+        if (voiceOn) tts.value?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "essentiel")
+    }
 
     fun computeRoute(place: Place, fit: Boolean = true) {
         val from = me
         if (from == null) { Toast.makeText(ctx, "Position inconnue pour l'instant", Toast.LENGTH_SHORT).show(); return }
         loadingRoute = true
+        val key = MapPlaces.tomtomKey(ctx)
+        val av = avoid
         scope.launch {
-            val r = withContext(Dispatchers.IO) { MapApi.route(mode, from.latitude, from.longitude, place.lat, place.lon) }
-            loadingRoute = false
-            route = r
-            if (r == null) {
-                Toast.makeText(ctx, "Itinéraire introuvable (connexion ?)", Toast.LENGTH_SHORT).show()
-                MapStyle.setGeoJson(style, MapStyle.SRC_ROUTE, MapApi.EMPTY)
-            } else {
-                MapStyle.setGeoJson(style, MapStyle.SRC_ROUTE, MapApi.lineJson(r.points))
-                if (fit) fitPoints(r.points)
+            val list = withContext(Dispatchers.IO) {
+                MapApi.routes(mode, from.latitude, from.longitude, place.lat, place.lon, av, key)
             }
+            loadingRoute = false
+            routes = list; selectedRoute = 0
+            drawRoutes()
+            if (list.isEmpty()) Toast.makeText(ctx, "Itinéraire introuvable (connexion ?)", Toast.LENGTH_SHORT).show()
+            else if (fit) fitPoints(list.flatMap { it.points })
         }
     }
 
@@ -242,6 +254,17 @@ private fun MapContent(nav: Nav) {
     fun startNavigation() {
         val r = route ?: return
         navigating = true; follow = true; showSteps = false
+        // On ne garde que l'itinéraire choisi et on zoome sur ma position, orientée comme le téléphone
+        routes = listOf(r); selectedRoute = 0; drawRoutes()
+        me?.let { loc ->
+            val bearing = if (loc.hasBearing() && loc.speed > 2f) loc.bearing else heading
+            map?.animateCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder().target(LatLng(loc.latitude, loc.longitude)).zoom(17.5)
+                        .tilt(55.0).bearing(bearing.toDouble()).build()
+                ), 1200
+            )
+        }
         stepIndex = if (r.steps.size > 1) 1 else 0
         announcedNear = -1; offRouteCount = 0
         (ctx as? Activity)?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -274,6 +297,7 @@ private fun MapContent(nav: Nav) {
             else CameraPosition.Builder().target(LatLng(46.6, 2.4)).zoom(5.0).build()
             m.setStyle(Style.Builder().fromUri(MapStyle.STYLE_URL)) { s ->
                 MapStyle.apply(s)
+                if (MapPlaces.showTraffic(ctx)) MapStyle.setTraffic(s, MapPlaces.tomtomKey(ctx))
                 style = s
             }
             // Toucher un point d'intérêt ou un résultat
@@ -282,6 +306,13 @@ private fun MapContent(nav: Nav) {
                 val r = 28f
                 val rect = RectF(screen.x - r, screen.y - r, screen.x + r, screen.y + r)
                 val current = panel
+                val alt = try { m.queryRenderedFeatures(rect, MapStyle.LAYER_ROUTE_ALT) } catch (e: Exception) { null }
+                val altHit = alt?.firstOrNull { it.hasProperty("i") }
+                if (altHit != null && !navigating) {
+                    selectedRoute = altHit.getNumberProperty("i").toInt()
+                    drawRoutes()
+                    return@addOnMapClickListener true
+                }
                 val res = try { m.queryRenderedFeatures(rect, MapStyle.LAYER_RESULTS) } catch (e: Exception) { null }
                 val hit = res?.firstOrNull { it.hasProperty("i") }
                 if (hit != null) {
@@ -334,35 +365,27 @@ private fun MapContent(nav: Nav) {
     }
 
     // ---------- Position en direct ----------
+    // Le service de localisation de Google (le même que les autres apps) est bien plus précis.
     DisposableEffect(Unit) {
-        val lm = ctx.getSystemService(LocationManager::class.java)
-        val listener = object : LocationListener {
-            override fun onLocationChanged(location: Location) {
-                val prev = me
-                if (prev == null || location.provider == LocationManager.GPS_PROVIDER ||
-                    location.time - prev.time > 10_000 || location.accuracy <= prev.accuracy
-                ) me = location
-            }
-            @Deprecated("API 29") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
+        val stop = LocationSource.start(ctx) { loc ->
+            val prev = me
+            val fresher = prev == null || loc.time - prev.time > 4_000
+            if (fresher || loc.accuracy <= prev!!.accuracy + 5) me = loc
         }
-        try {
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-                .mapNotNull { p -> try { lm?.getLastKnownLocation(p) } catch (e: Exception) { null } }
-                .maxByOrNull { it.time }?.let { me = it }
-            if (ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                lm?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, listener, Looper.getMainLooper())
-            }
-            lm?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
-        } catch (e: Exception) { }
-        onDispose { try { lm?.removeUpdates(listener) } catch (e: Exception) { } }
+        onDispose { stop() }
+    }
+
+    // Boussole : sens dans lequel pointe le téléphone
+    DisposableEffect(Unit) {
+        val stop = Compass.start(ctx) { deg -> heading = deg }
+        onDispose { stop() }
     }
 
     // Point « moi », caméra qui suit, guidage
     LaunchedEffect(me, style) {
         val loc = me ?: return@LaunchedEffect
-        MapStyle.setGeoJson(style, MapStyle.SRC_ME, MapApi.pointJson(loc.latitude, loc.longitude))
+        val moving = loc.hasBearing() && loc.speed > 2f
+        MapStyle.setGeoJson(style, MapStyle.SRC_ME, MapApi.meJson(loc.latitude, loc.longitude, if (moving) loc.bearing else heading))
         val m = map ?: return@LaunchedEffect
         if (firstFix) {
             firstFix = false
@@ -373,8 +396,8 @@ private fun MapContent(nav: Nav) {
             val zoom = if (navigating) 17.0 else maxOf(m.cameraPosition.zoom, 14.0)
             val builder = CameraPosition.Builder().target(LatLng(loc.latitude, loc.longitude)).zoom(zoom)
             if (navigating) {
-                builder.tilt(50.0)
-                if (loc.hasBearing() && loc.speed > 1f) builder.bearing(loc.bearing.toDouble())
+                builder.tilt(55.0).zoom(17.5)
+                builder.bearing((if (moving) loc.bearing else heading).toDouble())
             }
             m.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), 700)
         }
@@ -408,6 +431,13 @@ private fun MapContent(nav: Nav) {
                     stepIndex = 1
                 }
             } else offRouteCount = 0
+        }
+    }
+
+    LaunchedEffect(heading, style) {
+        val loc = me ?: return@LaunchedEffect
+        if (!(loc.hasBearing() && loc.speed > 2f)) {
+            MapStyle.setGeoJson(style, MapStyle.SRC_ME, MapApi.meJson(loc.latitude, loc.longitude, heading))
         }
     }
 
@@ -446,7 +476,16 @@ private fun MapContent(nav: Nav) {
                     Modifier.padding(horizontal = 14.dp).fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp))
                         .clip(RoundedCornerShape(24.dp)).background(Palette.Accent).padding(18.dp)
                 ) {
-                    if (dist != null) Text(MapApi.formatDistance(dist), style = serifStyle(36, Color.White))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            if (dist != null) Text(MapApi.formatDistance(dist), style = serifStyle(36, Color.White))
+                        }
+                        Box(
+                            Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))
+                                .clickable { voiceOn = !voiceOn; MapPlaces.setVoice(ctx, voiceOn); if (!voiceOn) tts.value?.stop() },
+                            contentAlignment = Alignment.Center,
+                        ) { LineIconView(if (voiceOn) Icons.speaker else Icons.speakerOff, Color.White, 22.dp) }
+                    }
                     Text(step?.instruction ?: "Suivez l'itinéraire", style = bodyStyle(18, Color.White, bold = true))
                     r.steps.getOrNull(stepIndex + 1)?.let {
                         Spacer(Modifier.height(6.dp))
@@ -463,16 +502,16 @@ private fun MapContent(nav: Nav) {
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.clip(CircleShape).clickable { nav.back() }.padding(8.dp)) {
-                        LineIconView(Icons.back, Palette.Ink, 24.dp)
-                    }
+                    Box(Modifier.padding(8.dp)) { LineIconView(Icons.search, Palette.Accent, 22.dp) }
                     Text(
                         query.ifBlank { "rechercher sur la carte" },
                         style = bodyStyle(17, if (query.isBlank()) Palette.Muted else Palette.Ink),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(vertical = 12.dp)
                     )
-                    Box(Modifier.padding(8.dp)) { LineIconView(Icons.search, Palette.Accent, 22.dp) }
+                    Box(Modifier.clip(CircleShape).clickable { showSettings = true }.padding(8.dp)) {
+                        LineIconView(Icons.gear, Palette.Muted, 22.dp)
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 // Catégories rapides
@@ -600,15 +639,70 @@ private fun MapContent(nav: Nav) {
                                 )
                             }
                         }
+                        if (mode == Mode.CAR) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("éviter :", style = bodyStyle(13, Palette.Muted))
+                                Avoid.entries.forEach { a ->
+                                    val on = a in avoid
+                                    Text(
+                                        a.label, style = bodyStyle(13, if (on) Color.White else Palette.Ink, bold = true),
+                                        modifier = Modifier.clip(RoundedCornerShape(50))
+                                            .background(if (on) Palette.Ink else Palette.Card)
+                                            .border(1.dp, if (on) Palette.Ink else Palette.Line, RoundedCornerShape(50))
+                                            .clickable {
+                                                avoid = if (on) avoid - a else avoid + a
+                                                MapPlaces.setAvoid(ctx, avoid)
+                                                computeRoute(p.place)
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(12.dp))
+                        // Choix parmi plusieurs itinéraires
+                        if (!loadingRoute && routes.size > 1) {
+                            routes.forEachIndexed { i, alt ->
+                                val sel = i == selectedRoute
+                                val shape = RoundedCornerShape(18.dp)
+                                Row(
+                                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape)
+                                        .background(if (sel) Palette.Accent.copy(alpha = 0.10f) else Palette.Card)
+                                        .border(if (sel) 2.dp else 1.dp, if (sel) Palette.Accent else Palette.Line, shape)
+                                        .clickable { selectedRoute = i; drawRoutes() }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(MapApi.formatDuration(alt.duration), style = bodyStyle(18, if (sel) Palette.Accent else Palette.Ink, bold = true))
+                                        val info = listOfNotNull(
+                                            MapApi.formatDistance(alt.distance),
+                                            alt.via.takeIf { it.isNotBlank() }?.let { "par $it" },
+                                        ).joinToString(" · ")
+                                        Text(info, style = bodyStyle(13, Palette.Muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    if (alt.withTraffic) {
+                                        val delayMin = (alt.trafficDelay / 60).toInt()
+                                        Text(
+                                            if (delayMin > 0) "+$delayMin min bouchons" else "fluide",
+                                            style = bodyStyle(12, if (delayMin > 4) Palette.Accent else Color(0xFF2E9E5B), bold = true)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     when {
-                        loadingRoute -> Text("calcul de l'itinéraire…", style = bodyStyle(16, Palette.Muted))
+                        loadingRoute -> Text("calcul des itinéraires…", style = bodyStyle(16, Palette.Muted))
                         r == null -> Text("pas d'itinéraire", style = bodyStyle(16, Palette.Muted))
                         else -> {
                             val left = if (navigating) r.steps.drop(stepIndex).sumOf { it.distance } else r.distance
                             val timeLeft = if (navigating && r.distance > 0) r.duration * (left / r.distance) else r.duration
                             val arrival = SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(System.currentTimeMillis() + (timeLeft * 1000).toLong()))
+                            if (r.withTraffic && !navigating) {
+                                Text("trafic en temps réel (TomTom)", style = bodyStyle(12, Color(0xFF2E9E5B), bold = true))
+                            }
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(MapApi.formatDuration(timeLeft), style = serifStyle(32))
                                 Spacer(Modifier.width(10.dp))
@@ -643,6 +737,17 @@ private fun MapContent(nav: Nav) {
             }
         }
 
+        // ---------- Réglages de la carte ----------
+        if (showSettings) {
+            MapSettingsDialog(
+                onClose = { showSettings = false },
+                onChanged = {
+                    voiceOn = MapPlaces.voice(ctx)
+                    MapStyle.setTraffic(style, if (MapPlaces.showTraffic(ctx)) MapPlaces.tomtomKey(ctx) else null)
+                },
+            )
+        }
+
         // ---------- Écran de recherche ----------
         if (searchOpen) {
             SearchOverlay(
@@ -660,6 +765,46 @@ private fun MapContent(nav: Nav) {
 }
 
 private val minusIcon = LineIcon(listOf("M5 12h14"))
+
+@Composable
+private fun MapSettingsDialog(onClose: () -> Unit, onChanged: () -> Unit) {
+    val ctx = LocalContext.current
+    var voice by remember { mutableStateOf(MapPlaces.voice(ctx)) }
+    var traffic by remember { mutableStateOf(MapPlaces.showTraffic(ctx)) }
+    var key by remember { mutableStateOf(MapPlaces.tomtomKey(ctx)) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { MapPlaces.setTomtomKey(ctx, key); onChanged(); onClose() },
+        containerColor = Palette.Bg,
+        title = { Text("Réglages de la carte", style = serifStyle(26)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Guidage vocal", style = bodyStyle(16), modifier = Modifier.weight(1f))
+                    fr.essentiel.launcher.clock.Switch(voice) { voice = !voice; MapPlaces.setVoice(ctx, voice) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Afficher le trafic", style = bodyStyle(16), modifier = Modifier.weight(1f))
+                    fr.essentiel.launcher.clock.Switch(traffic) { traffic = !traffic; MapPlaces.setShowTraffic(ctx, traffic) }
+                }
+                Text(
+                    "Le trafic en temps réel vient de TomTom. Crée une clé gratuite sur developer.tomtom.com " +
+                        "(sans carte bancaire), puis colle-la ici. Sans clé : itinéraires OpenStreetMap sans trafic.",
+                    style = bodyStyle(13, Palette.Muted)
+                )
+                fr.essentiel.launcher.Field(key, { key = it }, "clé TomTom (facultatif)", Modifier.fillMaxWidth())
+                Text(
+                    "ouvrir developer.tomtom.com", style = bodyStyle(14, Palette.Accent, bold = true),
+                    modifier = Modifier.clickable {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://developer.tomtom.com/user/register")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { MapPlaces.setTomtomKey(ctx, key); onChanged(); onClose() }) { Text("OK") }
+        },
+    )
+}
 
 @Composable
 private fun SearchOverlay(

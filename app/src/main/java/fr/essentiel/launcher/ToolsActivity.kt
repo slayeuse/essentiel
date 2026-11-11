@@ -23,6 +23,7 @@ import fr.essentiel.launcher.contacts.ContactEditScreen
 import fr.essentiel.launcher.contacts.ContactsScreen
 import fr.essentiel.launcher.gallery.GalleryScreen
 import fr.essentiel.launcher.gallery.ViewerScreen
+import fr.essentiel.launcher.gallery.EditorScreen
 import fr.essentiel.launcher.messages.ConversationScreen
 import fr.essentiel.launcher.messages.MessagesScreen
 import fr.essentiel.launcher.messages.NewMessageScreen
@@ -41,6 +42,7 @@ sealed class Route {
     data object Camera : Route()
     data object Gallery : Route()
     data class Viewer(val index: Int) : Route()
+    data class Editor(val index: Int) : Route()
     data object Calendar : Route()
     data class EventEdit(val eventId: Long?, val day: Long) : Route()
     data object Reminders : Route()
@@ -160,6 +162,7 @@ fun ToolsHost(stack: SnapshotStateList<Route>, nav: Nav) {
             Route.Camera -> CameraScreen(nav)
             Route.Gallery -> GalleryScreen(nav)
             is Route.Viewer -> ViewerScreen(nav, r.index)
+            is Route.Editor -> EditorScreen(nav, r.index)
             Route.Calendar -> CalendarScreen(nav)
             is Route.EventEdit -> EventEditScreen(nav, r.eventId, r.day)
             Route.Reminders -> RemindersScreen(nav)

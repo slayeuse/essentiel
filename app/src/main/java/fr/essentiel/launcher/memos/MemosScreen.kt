@@ -120,7 +120,7 @@ object MemoStore {
 
 @Composable
 fun MemosScreen(nav: Nav) {
-    ToolScaffold("mémos vocaux", onBack = nav::back) {
+    ToolScaffold("mémos", subtitle = "enregistrements vocaux") {
         PermissionGate(arrayOf(Manifest.permission.RECORD_AUDIO), "Pour enregistrer des mémos, Essentiel a besoin du micro.") {
             MemosContent()
         }
@@ -226,7 +226,12 @@ private fun MemosContent() {
             if (memos.isEmpty()) item { EmptyText("Aucun mémo. Touche le bouton pour enregistrer.") }
             items(memos, key = { it.file.absolutePath }) { m ->
                 val isThis = playing == m.file
-                Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(22.dp))
+                        .background(if (isThis) Palette.Accent.copy(alpha = 0.08f) else Color(0xFFF2EFEA))
+                        .border(1.dp, if (isThis) Palette.Accent.copy(alpha = 0.5f) else Palette.Line, RoundedCornerShape(22.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier.size(44.dp).clip(CircleShape)
@@ -262,12 +267,16 @@ private fun MemosContent() {
                         }
                     }
                 }
-                Divider()
             }
         }
 
         // ----- Zone d'enregistrement -----
-        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxWidth().padding(bottom = 16.dp).clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFFF2EFEA)).border(1.dp, Palette.Line, RoundedCornerShape(28.dp))
+                .padding(vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             if (recorder != null) {
                 Text(formatDuration(now - recStart), style = serifStyle(40))
                 Spacer(Modifier.height(10.dp))

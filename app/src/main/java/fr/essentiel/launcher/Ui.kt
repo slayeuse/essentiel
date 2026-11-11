@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -68,11 +69,15 @@ fun EssentielTheme(content: @Composable () -> Unit) {
 fun serifStyle(size: Int, color: Color = Palette.Ink) =
     TextStyle(fontFamily = Fonts.serif, fontSize = size.sp, lineHeight = (size * 1.15f).sp, color = color)
 
-/** Écran type d'une app intégrée : bouton retour, grand titre, contenu. */
+/**
+ * Écran type d'une app intégrée : grand titre (+ sous-titre), actions à droite, contenu.
+ * Pas de flèche retour : on utilise le geste / bouton retour d'Android. onBack reste pour la compatibilité.
+ */
 @Composable
 fun ToolScaffold(
     title: String,
-    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit = {},
+    subtitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -80,26 +85,77 @@ fun ToolScaffold(
         Modifier
             .fillMaxSize()
             .paper()
-            .padding(horizontal = 22.dp)
+            .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .clip(CircleShape)
-                    .clickable(onClick = onBack)
-                    .padding(6.dp)
-            ) { LineIconView(Icons.back, Palette.Ink, 26.dp) }
-            Spacer(Modifier.width(6.dp))
-            Text(
-                title, style = serifStyle(34), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            Column(Modifier.weight(1f)) {
+                if (title.isNotEmpty()) {
+                    Text(title, style = serifStyle(38), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (subtitle != null) Text(subtitle, style = bodyStyle(14, Palette.Muted), maxLines = 1)
+            }
             actions()
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         content()
     }
+}
+
+/** Onglets en forme de pilule (ex. réveils / minuteur / chrono). */
+@Composable
+fun SegmentedTabs(labels: List<String>, selected: Int, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Palette.Card)
+            .border(1.dp, Palette.Line, shape)
+            .padding(4.dp)
+    ) {
+        labels.forEachIndexed { i, l ->
+            val sel = i == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(shape)
+                    .background(if (sel) Palette.Accent else Color.Transparent)
+                    .clickable { onSelect(i) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(l, style = bodyStyle(15, if (sel) Color.White else Palette.Ink, bold = true), maxLines = 1) }
+        }
+    }
+}
+
+/** Bloc arrondi qui regroupe des lignes (style « réglages iOS », aux couleurs d'Essentiel). */
+@Composable
+fun CardGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color(0xFFF2EFEA))
+            .border(1.dp, Palette.Line, shape)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        content = content,
+    )
+}
+
+/** Gros bouton rond orange en bas à droite. */
+@Composable
+fun Fab(icon: LineIcon, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .size(62.dp)
+            .shadow(8.dp, CircleShape)
+            .clip(CircleShape)
+            .background(Palette.Accent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { LineIconView(icon, Color.White, 28.dp, strokeWidth = 2.4f) }
 }
 
 @Composable

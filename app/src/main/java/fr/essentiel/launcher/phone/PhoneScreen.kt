@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.essentiel.launcher.Divider
+import fr.essentiel.launcher.CardGroup
+import fr.essentiel.launcher.SegmentedTabs
 import fr.essentiel.launcher.EmptyText
 import fr.essentiel.launcher.IconAction
 import fr.essentiel.launcher.Icons
@@ -80,12 +82,13 @@ fun PhoneScreen(nav: Nav, initialNumber: String) {
         ) {
             Column(Modifier.fillMaxSize()) {
                 DefaultDialerHint()
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                    TabLabel("clavier", tab == 0) { tab = 0 }
-                    TabLabel("récents", tab == 1) { tab = 1 }
+                SegmentedTabs(listOf("clavier", "récents", "favoris"), tab) { tab = it }
+                Spacer(Modifier.height(10.dp))
+                when (tab) {
+                    0 -> Keypad(nav, initialNumber)
+                    1 -> Recents(nav)
+                    else -> Favorites(nav)
                 }
-                Spacer(Modifier.height(8.dp))
-                if (tab == 0) Keypad(nav, initialNumber) else Recents(nav)
             }
         }
     }
@@ -166,22 +169,23 @@ private fun Keypad(nav: Nav, initialNumber: String) {
         KEYS.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 row.forEach { (k, letters) ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .aspectRatio(1.9f)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(Palette.Card)
-                            .border(1.dp, Palette.Line, RoundedCornerShape(22.dp))
-                            .combinedClickable(
-                                onClick = { number += k },
-                                onLongClick = { number += if (k == "0") "+" else k },
-                            ),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(k, style = serifStyle(28))
-                        if (letters.isNotEmpty()) Text(letters, style = bodyStyle(11, Palette.Muted))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier
+                                .size(70.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF2EFEA))
+                                .border(1.dp, Palette.Line, CircleShape)
+                                .combinedClickable(
+                                    onClick = { number += k },
+                                    onLongClick = { number += if (k == "0") "+" else k },
+                                ),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(k, style = serifStyle(28))
+                            if (letters.isNotEmpty()) Text(letters.uppercase(), style = bodyStyle(9, Palette.Muted, bold = true))
+                        }
                     }
                 }
             }
@@ -223,7 +227,7 @@ private fun Recents(nav: Nav) {
     LaunchedEffect(version) { calls = withContext(Dispatchers.IO) { PhoneActions.recents(ctx) } }
 
     if (calls.isEmpty()) { EmptyText("Aucun appel récent."); return }
-    LazyColumn {
+    CardGroup { LazyColumn {
         items(calls) { call ->
             val missed = call.type == CallLog.Calls.MISSED_TYPE || call.type == CallLog.Calls.REJECTED_TYPE
             val icon = when (call.type) {
@@ -258,6 +262,45 @@ private fun Recents(nav: Nav) {
                 },
             ) { PhoneActions.call(ctx, call.number) }
             Divider()
+        }
+    }
+}
+}
+
+@Composable
+private fun Favorites(nav: Nav) {
+    val ctx = LocalContext.current
+    var favs by remember { mutableStateOf<List<Contact>>(emptyList()) }
+    var numbers by remember { mutableStateOf<Map<Long, List<String>>>(emptyMap()) }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            favs = ContactsRepo.all(ctx).filter { it.starred }
+            numbers = ContactsRepo.allNumbers(ctx)
+        }
+    }
+    if (favs.isEmpty()) {
+        EmptyText("Pas encore de favoris. Ouvre un contact et touche l'étoile.")
+        return
+    }
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(favs.size) { i ->
+            val c = favs[i]
+            val n = numbers[c.id]?.firstOrNull()
+            Column(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFF2EFEA))
+                    .clickable { if (n != null) PhoneActions.call(ctx, n) else nav.go(Route.ContactDetail(c.id)) }
+                    .padding(vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                fr.essentiel.launcher.Avatar(c.name, c.photo, 64.dp)
+                Spacer(Modifier.height(8.dp))
+                Text(c.name.substringBefore(" "), style = bodyStyle(14, bold = true), maxLines = 1)
+                Text("appeler", style = bodyStyle(11, Palette.Accent))
+            }
         }
     }
 }

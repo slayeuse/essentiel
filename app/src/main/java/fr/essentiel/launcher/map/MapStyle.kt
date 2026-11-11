@@ -1,6 +1,13 @@
 package fr.essentiel.launcher.map
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Color as AndroidColor
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.sources.RasterSource
+import org.maplibre.android.style.sources.TileSet
 import org.maplibre.android.style.layers.BackgroundLayer
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillExtrusionLayer
@@ -100,19 +107,26 @@ object MapStyle {
 
         val route = GeoJsonSource(SRC_ROUTE).also { it.setGeoJson(MapApi.EMPTY) }
         style.addSource(route)
+        val selected = Expression.eq(Expression.get("sel"), Expression.literal(1))
+        val other = Expression.eq(Expression.get("sel"), Expression.literal(0))
+        val altLine = LineLayer(LAYER_ROUTE_ALT, SRC_ROUTE).withProperties(
+            PropertyFactory.lineColor("#B3ABA0"), PropertyFactory.lineWidth(6f),
+            PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+        ).withFilter(other)
         val routeCasing = LineLayer("essentiel-route-casing", SRC_ROUTE).withProperties(
-            PropertyFactory.lineColor("#FFFFFF"), PropertyFactory.lineWidth(9f),
+            PropertyFactory.lineColor("#FFFFFF"), PropertyFactory.lineWidth(10f),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-        )
+        ).withFilter(selected)
         val routeLine = LineLayer("essentiel-route-line", SRC_ROUTE).withProperties(
-            PropertyFactory.lineColor(ACCENT), PropertyFactory.lineWidth(5.5f),
+            PropertyFactory.lineColor(ACCENT), PropertyFactory.lineWidth(6f),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-        )
+        ).withFilter(selected)
         if (firstLabel != null) {
+            style.addLayerBelow(altLine, firstLabel)
             style.addLayerBelow(routeCasing, firstLabel)
             style.addLayerBelow(routeLine, firstLabel)
         } else {
-            style.addLayer(routeCasing); style.addLayer(routeLine)
+            style.addLayer(altLine); style.addLayer(routeCasing); style.addLayer(routeLine)
         }
 
         // Résultats de recherche (plusieurs points avec leur nom)
@@ -149,19 +163,64 @@ object MapStyle {
             )
         )
 
+        // Ma position : une flèche orientée dans le sens du téléphone
+        style.addImage(IMG_ARROW, arrowBitmap())
         val me = GeoJsonSource(SRC_ME).also { it.setGeoJson(MapApi.EMPTY) }
         style.addSource(me)
         style.addLayer(
             CircleLayer("essentiel-me-halo", SRC_ME).withProperties(
-                PropertyFactory.circleColor(INK), PropertyFactory.circleRadius(18f), PropertyFactory.circleOpacity(0.12f)
+                PropertyFactory.circleColor(ACCENT), PropertyFactory.circleRadius(22f), PropertyFactory.circleOpacity(0.14f)
             )
         )
         style.addLayer(
-            CircleLayer("essentiel-me-dot", SRC_ME).withProperties(
-                PropertyFactory.circleColor(INK), PropertyFactory.circleRadius(7f),
-                PropertyFactory.circleStrokeColor("#FFFFFF"), PropertyFactory.circleStrokeWidth(3f)
+            SymbolLayer("essentiel-me-arrow", SRC_ME).withProperties(
+                PropertyFactory.iconImage(IMG_ARROW),
+                PropertyFactory.iconRotate(Expression.get("bearing")),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconSize(0.5f),
             )
         )
+    }
+
+    const val LAYER_ROUTE_ALT = "essentiel-route-alt"
+    private const val IMG_ARROW = "essentiel-arrow"
+    private const val SRC_TRAFFIC = "essentiel-traffic"
+    private const val LAYER_TRAFFIC = "essentiel-traffic-layer"
+
+    /** Flèche de position : rond blanc, flèche orange. */
+    private fun arrowBitmap(): Bitmap {
+        val size = 120
+        val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(b)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = AndroidColor.argb(60, 0, 0, 0)
+        c.drawCircle(60f, 63f, 46f, p)
+        p.color = AndroidColor.WHITE
+        c.drawCircle(60f, 60f, 46f, p)
+        p.color = AndroidColor.parseColor(ACCENT)
+        val path = Path().apply {
+            moveTo(60f, 22f); lineTo(88f, 90f); lineTo(60f, 76f); lineTo(32f, 90f); close()
+        }
+        c.drawPath(path, p)
+        return b
+    }
+
+    /** Couche trafic TomTom (avec une clé). */
+    fun setTraffic(style: Style?, key: String?) {
+        val s = style ?: return
+        try {
+            s.getLayer(LAYER_TRAFFIC)?.let { s.removeLayer(it) }
+            s.getSource(SRC_TRAFFIC)?.let { s.removeSource(it) }
+            if (key.isNullOrBlank()) return
+            val url = "https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=" + key.trim() + "&tileSize=256"
+            s.addSource(RasterSource(SRC_TRAFFIC, TileSet("2.2.0", url), 256))
+            val layer = RasterLayer(LAYER_TRAFFIC, SRC_TRAFFIC).withProperties(PropertyFactory.rasterOpacity(0.8f))
+            val below = s.layers.firstOrNull { it is SymbolLayer }?.id
+            if (below != null) s.addLayerBelow(layer, below) else s.addLayer(layer)
+        } catch (e: Exception) { }
     }
 
     fun setGeoJson(style: Style?, sourceId: String, json: String) {

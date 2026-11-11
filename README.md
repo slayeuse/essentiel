@@ -68,6 +68,19 @@ Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut).
 - **Carte** : points d'intérêt affichés et touchables, écran de recherche, catégories (restaurants, boulangeries…),
   favoris, récents, partage d'un lieu, heure d'arrivée, zoom +/–.
 
+## Nouveau en 0.5
+
+- **Carte** : plusieurs itinéraires au choix (Valhalla / OpenStreetMap), options « éviter autoroutes / péages / ferries »,
+  localisation précise (service de Google), flèche qui suit le sens du téléphone, guidage qui zoome et s'oriente,
+  voix activable / coupable, trafic en temps réel avec une clé TomTom gratuite (roue dentée dans la barre de recherche).
+- **Agenda** : ajout corrigé (choix de l'agenda, agenda « Essentiel » créé si besoin, vraie raison en cas d'erreur), nouvelle présentation.
+- **Galerie** : tri par jour, date + lieu en haut, infos de la photo (appareil, réglages, lieu) en glissant,
+  éditeur (recadrage, rotation, filtres, luminosité / contraste / saturation / chaleur) qui enregistre une copie.
+- **Appareil photo** : nouvelle interface, pincer pour zoomer, boutons 0,5 / 1 / 2 / 5, mise au point au toucher,
+  grille, retardateur 3 / 10 s.
+- **Icônes** : les apps installées ont leur icône ; modifiable (icône Essentiel ou initiale) en modifiant la case.
+- **Rappels, Contacts, Mémos, Horloge, Téléphone** : nouvelle présentation. Plus de flèche retour (geste retour d'Android).
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

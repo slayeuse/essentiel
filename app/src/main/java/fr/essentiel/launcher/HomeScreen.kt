@@ -321,6 +321,7 @@ fun SlotButton(
             when {
                 info == null -> if (editing) Text("+", style = serifStyleHome(30, Palette.Accent))
                 info.icon != null -> LineIconView(info.icon, Palette.Accent, 30.dp)
+                info.pkg != null -> AppIconView(info.pkg, 32.dp)
                 else -> Text(info.letter, style = serifStyleHome(30, Palette.Accent))
             }
             if (info != null) {

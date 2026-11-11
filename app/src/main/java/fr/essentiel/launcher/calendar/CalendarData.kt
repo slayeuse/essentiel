@@ -114,38 +114,77 @@ object CalendarData {
         return null
     }
 
-    /** L'agenda dans lequel on crée les événements (le principal du compte Google si possible). */
-    private fun writableCalendarId(ctx: Context): Long? {
-        var best: Long? = null
-        var bestScore = -1
+    data class Cal(val id: Long, val name: String, val account: String, val color: Int, val primary: Boolean)
+
+    /** Les agendas dans lesquels on peut écrire (Google en premier). */
+    fun writableCalendars(ctx: Context): List<Cal> {
+        val out = mutableListOf<Pair<Cal, Int>>()
         try {
             ctx.contentResolver.query(
                 CalendarContract.Calendars.CONTENT_URI,
                 arrayOf(
                     CalendarContract.Calendars._ID,
+                    CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                    CalendarContract.Calendars.ACCOUNT_NAME,
                     CalendarContract.Calendars.ACCOUNT_TYPE,
-                    CalendarContract.Calendars.IS_PRIMARY,
                     CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
+                    CalendarContract.Calendars.CALENDAR_COLOR,
+                    CalendarContract.Calendars.OWNER_ACCOUNT,
                     CalendarContract.Calendars.VISIBLE,
                 ),
-                "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}",
-                null, null
+                null, null, null
             )?.use { c ->
                 while (c.moveToNext()) {
+                    val level = c.getInt(4)
+                    if (level < CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR) continue
+                    val accountName = c.getString(2).orEmpty()
+                    val type = c.getString(3).orEmpty()
+                    val owner = c.getString(6).orEmpty()
+                    val primary = owner.isNotBlank() && owner == accountName
                     var score = 0
-                    if (c.getString(1) == "com.google") score += 4
-                    if (c.getInt(2) == 1) score += 2
-                    if (c.getInt(4) == 1) score += 1
-                    if (score > bestScore) { bestScore = score; best = c.getLong(0) }
+                    if (type == "com.google") score += 4
+                    if (primary) score += 2
+                    if (c.getInt(7) == 1) score += 1
+                    out += Cal(c.getLong(0), c.getString(1) ?: accountName.ifBlank { "Agenda" }, accountName, c.getInt(5), primary) to score
                 }
             }
         } catch (e: Exception) { }
-        return best
+        return out.sortedByDescending { it.second }.map { it.first }
     }
 
-    /** Crée (id = null) ou modifie un événement. Retourne false en cas d'échec. */
-    fun save(ctx: Context, id: Long?, title: String, location: String, begin: Long, end: Long, allDay: Boolean): Boolean {
-        if (!canWrite(ctx)) return false
+    /** Si aucun agenda n'existe sur le téléphone, on crée un agenda local « Essentiel ». */
+    fun createLocalCalendar(ctx: Context): Long? = try {
+        val uri = CalendarContract.Calendars.CONTENT_URI.buildUpon()
+            .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, "Essentiel")
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+            .build()
+        val v = ContentValues().apply {
+            put(CalendarContract.Calendars.ACCOUNT_NAME, "Essentiel")
+            put(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+            put(CalendarContract.Calendars.NAME, "Essentiel")
+            put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, "Essentiel (sur le téléphone)")
+            put(CalendarContract.Calendars.CALENDAR_COLOR, 0xFFF2390C.toInt())
+            put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER)
+            put(CalendarContract.Calendars.OWNER_ACCOUNT, "Essentiel")
+            put(CalendarContract.Calendars.VISIBLE, 1)
+            put(CalendarContract.Calendars.SYNC_EVENTS, 1)
+            put(CalendarContract.Calendars.CALENDAR_TIME_ZONE, TimeZone.getDefault().id)
+        }
+        ctx.contentResolver.insert(uri, v)?.let { ContentUris.parseId(it) }
+    } catch (e: Exception) { null }
+
+    /** Dernière erreur d'enregistrement (affichée à l'utilisateur). */
+    var lastError: String = ""
+        private set
+
+    /** Crée (id = null) ou modifie un événement. calendarId = agenda choisi (null = le meilleur). */
+    fun save(
+        ctx: Context, id: Long?, title: String, location: String, begin: Long, end: Long, allDay: Boolean,
+        calendarId: Long? = null,
+    ): Boolean {
+        lastError = ""
+        if (!canWrite(ctx)) { lastError = "Autorise l'accès à l'agenda (écriture)."; return false }
         val v = ContentValues().apply {
             put(CalendarContract.Events.TITLE, title)
             put(CalendarContract.Events.EVENT_LOCATION, location)
@@ -164,14 +203,30 @@ object CalendarData {
         }
         return try {
             if (id == null) {
-                val cal = writableCalendarId(ctx) ?: return false
+                val cal = calendarId ?: writableCalendars(ctx).firstOrNull()?.id ?: createLocalCalendar(ctx)
+                if (cal == null) { lastError = "Aucun agenda sur le téléphone et impossible d'en créer un."; return false }
                 v.put(CalendarContract.Events.CALENDAR_ID, cal)
-                ctx.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v) != null
+                val uri = ctx.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v)
+                if (uri == null) lastError = "Android a refusé l'ajout."
+                uri != null
             } else {
-                ctx.contentResolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), v, null, null) > 0
+                if (calendarId != null) v.put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                val n = ctx.contentResolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), v, null, null)
+                if (n == 0) lastError = "Android a refusé la modification."
+                n > 0
             }
-        } catch (e: Exception) { false }
+        } catch (e: Exception) {
+            lastError = e.message ?: e.javaClass.simpleName
+            false
+        }
     }
+
+    fun calendarOf(ctx: Context, eventId: Long): Long? = try {
+        ctx.contentResolver.query(
+            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+            arrayOf(CalendarContract.Events.CALENDAR_ID), null, null, null
+        )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+    } catch (e: Exception) { null }
 
     fun delete(ctx: Context, id: Long): Boolean = try {
         ctx.contentResolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), null, null) > 0

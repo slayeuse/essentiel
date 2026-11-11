@@ -131,6 +131,32 @@ object Icons {
         circles = listOf(Triple(12f, 12f, 7f)),
         dots = listOf(12f to 12f)
     )
+    val gear = LineIcon(
+        listOf(
+            "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+        ),
+        circles = listOf(Triple(12f, 12f, 3f))
+    )
+    val speakerOff = LineIcon(listOf("M11 5L6 9H2v6h4l5 4V5z", "M22 9l-6 6", "M16 9l6 6"))
+    val crop = LineIcon(listOf("M6 2v14a2 2 0 0 0 2 2h14", "M18 22V8a2 2 0 0 0-2-2H2"))
+    val rotate = LineIcon(listOf("M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8", "M21 3v5h-5"))
+    val sliders = LineIcon(
+        listOf("M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3", "M1 14h6", "M9 8h6", "M17 16h6")
+    )
+    val sparkles = LineIcon(
+        listOf("M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z", "M5 3v4", "M3 5h4", "M19 17v4", "M17 19h4")
+    )
+    val info = LineIcon(listOf("M12 16v-4", "M12 8h.01"), circles = listOf(Triple(12f, 12f, 10f)))
+    val grid = LineIcon(listOf("M3 9h18", "M3 15h18", "M9 3v18", "M15 3v18"))
+    val home = LineIcon(listOf("M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 22V12h6v10"))
+    val heart = LineIcon(listOf("M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"))
+    val music = LineIcon(listOf("M9 18V5l12-2v13"), circles = listOf(Triple(6f, 18f, 3f), Triple(18f, 16f, 3f)))
+    val globe = LineIcon(listOf("M2 12h20", "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"), circles = listOf(Triple(12f, 12f, 10f)))
+    val cart = LineIcon(listOf("M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"), circles = listOf(Triple(9f, 21f, 1f), Triple(20f, 21f, 1f)))
+    val card = LineIcon(listOf("M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z", "M1 10h22"))
+    val book = LineIcon(listOf("M4 19.5A2.5 2.5 0 0 1 6.5 17H20", "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"))
+    val train = LineIcon(listOf("M6 3h12a2 2 0 0 1 2 2v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2z", "M4 11h16", "M8 22l2-4", "M16 22l-2-4"), dots = listOf(8f to 15f, 16f to 15f))
+    val mail = LineIcon(listOf("M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M22 6l-10 7L2 6"))
     val map = LineIcon(
         listOf("M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14", "M15 6v14")
     )

@@ -10,6 +10,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -73,6 +79,35 @@ fun SettingsScreen(
             Text("Quelle app mettre ici ?", style = bodyStyle(16, Palette.Muted))
             Spacer(Modifier.height(12.dp))
             LazyColumn(Modifier.weight(1f)) {
+                // Icône de l'app installée dans cette case
+                val pkgHere = current.takeIf { it.isNotBlank() && !it.startsWith(AppLauncher.BUILTIN_PREFIX) }
+                if (pkgHere != null) {
+                    item { Section("Icône de ${AppLauncher.label(ctx, pkgHere)}") }
+                    item {
+                        val v = AppIcons.version.intValue
+                        val chosen = remember(v) { AppIcons.choice(ctx, pkgHere) }
+                        val options = listOf("orig", "letter") + AppIcons.LINE.keys.map { "line:$it" }
+                        Column {
+                            options.chunked(6).forEach { row ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    row.forEach { opt ->
+                                        Box(
+                                            Modifier.weight(1f).aspectRatio(1f).padding(3.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (opt == chosen) Palette.Accent.copy(alpha = 0.15f) else Palette.Card)
+                                                .border(if (opt == chosen) 2.dp else 1.dp, if (opt == chosen) Palette.Accent else Palette.Line, RoundedCornerShape(14.dp))
+                                                .clickable { AppIcons.setChoice(ctx, pkgHere, opt) },
+                                            contentAlignment = Alignment.Center,
+                                        ) { AppIconView(pkgHere, 26.dp, choiceOverride = opt) }
+                                    }
+                                    repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                            Text("La 1re case = icône d'origine de l'app, la 2e = son initiale.", style = bodyStyle(12, Palette.Muted))
+                        }
+                    }
+                }
+                item { Section("App de cette case") }
                 item { PickRow("Case vide", current.isBlank()) { choose("") } }
                 item { Section("Apps Essentiel") }
                 items(BUILT_INS, key = { "b_" + it.id }) { b ->

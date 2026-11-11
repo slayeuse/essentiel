@@ -222,9 +222,8 @@ fun ConversationScreen(nav: Nav, threadIdArg: Long, addressArg: String, draft: S
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconAction(Icons.back, Palette.Ink, 26.dp) { nav.back() }
-            Spacer(Modifier.width(4.dp))
-            Avatar(title, null, 40.dp)
+            Spacer(Modifier.width(6.dp))
+            Avatar(title, null, 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, style = bodyStyle(18, bold = true), maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -77,12 +77,22 @@ data class RouteResult(
     val distance: Double,                    // mètres
     val duration: Double,                    // secondes
     val steps: List<Step>,
+    val via: String = "",                    // grande route empruntée
+    val trafficDelay: Double = 0.0,          // secondes perdues dans les bouchons (TomTom)
+    val withTraffic: Boolean = false,
 )
 
-enum class Mode(val label: String, val path: String) {
-    CAR("voiture", "routed-car"),
-    BIKE("vélo", "routed-bike"),
-    FOOT("à pied", "routed-foot"),
+/** Contraintes d'itinéraire. */
+enum class Avoid(val label: String) {
+    HIGHWAYS("autoroutes"),
+    TOLLS("péages"),
+    FERRIES("ferries"),
+}
+
+enum class Mode(val label: String, val path: String, val valhalla: String) {
+    CAR("voiture", "routed-car", "auto"),
+    BIKE("vélo", "routed-bike", "bicycle"),
+    FOOT("à pied", "routed-foot", "pedestrian"),
 }
 
 /**
@@ -161,6 +171,160 @@ object MapApi {
     } catch (e: Exception) {
         null
     }
+
+    /**
+     * Plusieurs itinéraires (jusqu'à 3), avec contraintes.
+     * - Avec une clé TomTom et en voiture : itinéraires calculés avec le trafic en temps réel.
+     * - Sinon : Valhalla (serveur public FOSSGIS / OpenStreetMap), puis OSRM en secours.
+     */
+    fun routes(
+        mode: Mode, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double,
+        avoid: Set<Avoid>, tomtomKey: String?,
+    ): List<RouteResult> {
+        if (mode == Mode.CAR && !tomtomKey.isNullOrBlank()) {
+            tomtom(tomtomKey, fromLat, fromLon, toLat, toLon, avoid).takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        valhalla(mode, fromLat, fromLon, toLat, toLon, avoid).takeIf { it.isNotEmpty() }?.let { return it }
+        return listOfNotNull(route(mode, fromLat, fromLon, toLat, toLon))
+    }
+
+    private fun valhalla(mode: Mode, fLat: Double, fLon: Double, tLat: Double, tLon: Double, avoid: Set<Avoid>): List<RouteResult> = try {
+        val costingOptions = JSONObject()
+        if (mode == Mode.CAR) {
+            val auto = JSONObject()
+            if (Avoid.HIGHWAYS in avoid) auto.put("use_highways", 0.0)
+            if (Avoid.TOLLS in avoid) auto.put("use_tolls", 0.0)
+            if (Avoid.FERRIES in avoid) auto.put("use_ferry", 0.0)
+            costingOptions.put("auto", auto)
+        }
+        val body = JSONObject()
+            .put("locations", JSONArray()
+                .put(JSONObject().put("lat", fLat).put("lon", fLon))
+                .put(JSONObject().put("lat", tLat).put("lon", tLon)))
+            .put("costing", mode.valhalla)
+            .put("costing_options", costingOptions)
+            .put("alternates", 2)
+            .put("units", "kilometers")
+            .put("language", "fr-FR")
+            .put("directions_options", JSONObject().put("language", "fr-FR").put("units", "kilometers"))
+        val json = JSONObject(get("https://valhalla1.openstreetmap.de/route?json=" + URLEncoder.encode(body.toString(), "UTF-8")))
+        val trips = mutableListOf(json.getJSONObject("trip"))
+        json.optJSONArray("alternates")?.let { alts ->
+            for (i in 0 until alts.length()) alts.getJSONObject(i).optJSONObject("trip")?.let { trips += it }
+        }
+        trips.mapNotNull { trip -> parseValhallaTrip(trip) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private fun parseValhallaTrip(trip: JSONObject): RouteResult? {
+        val legs = trip.optJSONArray("legs") ?: return null
+        val points = mutableListOf<Pair<Double, Double>>()
+        val steps = mutableListOf<Step>()
+        val roadLengths = HashMap<String, Double>()
+        for (l in 0 until legs.length()) {
+            val leg = legs.getJSONObject(l)
+            val shape = decodePolyline(leg.getString("shape"), 1e6)
+            val offset = points.size
+            points += shape
+            val mans = leg.optJSONArray("maneuvers") ?: JSONArray()
+            for (i in 0 until mans.length()) {
+                val m = mans.getJSONObject(i)
+                val idx = (m.optInt("begin_shape_index", 0)).coerceIn(0, shape.lastIndex)
+                val (lat, lon) = shape[idx]
+                val km = m.optDouble("length", 0.0)
+                val text = m.optString("verbal_pre_transition_instruction").ifBlank { m.optString("instruction") }
+                steps += Step(m.optString("instruction").ifBlank { text }, km * 1000, lat, lon)
+                m.optJSONArray("street_names")?.optString(0)?.takeIf { it.isNotBlank() }?.let { n ->
+                    roadLengths[n] = (roadLengths[n] ?: 0.0) + km
+                }
+            }
+        }
+        val summary = trip.getJSONObject("summary")
+        val via = roadLengths.maxByOrNull { it.value }?.key.orEmpty()
+        return RouteResult(points, summary.getDouble("length") * 1000, summary.getDouble("time"), steps, via)
+    }
+
+    private fun tomtom(key: String, fLat: Double, fLon: Double, tLat: Double, tLon: Double, avoid: Set<Avoid>): List<RouteResult> = try {
+        val sb = StringBuilder(
+            String.format(
+                Locale.US,
+                "https://api.tomtom.com/routing/1/calculateRoute/%.6f,%.6f:%.6f,%.6f/json?key=%s" +
+                    "&traffic=true&maxAlternatives=2&instructionsType=text&language=fr-FR&travelMode=car&routeType=fastest",
+                fLat, fLon, tLat, tLon, URLEncoder.encode(key.trim(), "UTF-8")
+            )
+        )
+        if (Avoid.HIGHWAYS in avoid) sb.append("&avoid=motorways")
+        if (Avoid.TOLLS in avoid) sb.append("&avoid=tollRoads")
+        if (Avoid.FERRIES in avoid) sb.append("&avoid=ferries")
+        val json = JSONObject(get(sb.toString()))
+        val routes = json.getJSONArray("routes")
+        (0 until routes.length()).map { r ->
+            val route = routes.getJSONObject(r)
+            val summary = route.getJSONObject("summary")
+            val points = mutableListOf<Pair<Double, Double>>()
+            val legs = route.getJSONArray("legs")
+            for (l in 0 until legs.length()) {
+                val pts = legs.getJSONObject(l).getJSONArray("points")
+                for (i in 0 until pts.length()) pts.getJSONObject(i).let { points += it.getDouble("latitude") to it.getDouble("longitude") }
+            }
+            val steps = mutableListOf<Step>()
+            val instr = route.optJSONObject("guidance")?.optJSONArray("instructions") ?: JSONArray()
+            for (i in 0 until instr.length()) {
+                val ins = instr.getJSONObject(i)
+                val pt = ins.optJSONObject("point")
+                val nextOffset = if (i + 1 < instr.length()) instr.getJSONObject(i + 1).optDouble("routeOffsetInMeters", 0.0) else summary.getDouble("lengthInMeters")
+                steps += Step(
+                    ins.optString("message").ifBlank { "Continuez" },
+                    (nextOffset - ins.optDouble("routeOffsetInMeters", 0.0)).coerceAtLeast(0.0),
+                    pt?.optDouble("latitude") ?: points.first().first,
+                    pt?.optDouble("longitude") ?: points.first().second
+                )
+            }
+            val via = (0 until instr.length()).map { instr.getJSONObject(it) }
+                .mapNotNull { it.optString("roadNumbers").takeIf { n -> n.isNotBlank() && n != "[]" } ?: it.optString("street").takeIf { n -> n.isNotBlank() } }
+                .firstOrNull()?.trim('[', ']', '"').orEmpty()
+            RouteResult(
+                points, summary.getDouble("lengthInMeters"), summary.getDouble("travelTimeInSeconds"), steps,
+                via, summary.optDouble("trafficDelayInSeconds", 0.0), true
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** Décode une « polyline » encodée (format Google, précision 1e5 ou 1e6). */
+    fun decodePolyline(encoded: String, precision: Double): List<Pair<Double, Double>> {
+        val out = ArrayList<Pair<Double, Double>>()
+        var index = 0
+        var lat = 0L
+        var lon = 0L
+        while (index < encoded.length) {
+            var result = 0L; var shift = 0; var b: Int
+            do { b = encoded[index++].code - 63; result = result or ((b and 0x1f).toLong() shl shift); shift += 5 } while (b >= 0x20)
+            lat += if (result and 1L != 0L) (result shr 1).inv() else (result shr 1)
+            result = 0L; shift = 0
+            do { b = encoded[index++].code - 63; result = result or ((b and 0x1f).toLong() shl shift); shift += 5 } while (b >= 0x20)
+            lon += if (result and 1L != 0L) (result shr 1).inv() else (result shr 1)
+            out += (lat / precision) to (lon / precision)
+        }
+        return out
+    }
+
+    /** Plusieurs itinéraires en une seule source : "sel" = 1 pour celui choisi. */
+    fun routesJson(routes: List<RouteResult>, selected: Int): String {
+        val feats = routes.mapIndexed { i, r ->
+            val coords = r.points.joinToString(",") { (lat, lon) -> String.format(Locale.US, "[%.6f,%.6f]", lon, lat) }
+            """{"type":"Feature","properties":{"i":$i,"sel":${if (i == selected) 1 else 0}},"geometry":{"type":"LineString","coordinates":[$coords]}}"""
+        }
+        return """{"type":"FeatureCollection","features":[${feats.joinToString(",")}]}"""
+    }
+
+    fun meJson(lat: Double, lon: Double, bearing: Float): String = String.format(
+        Locale.US,
+        """{"type":"Feature","properties":{"bearing":%.1f},"geometry":{"type":"Point","coordinates":[%.6f,%.6f]}}""",
+        bearing, lon, lat
+    )
 
     private fun direction(modifier: String): String = when (modifier) {
         "left" -> "à gauche"

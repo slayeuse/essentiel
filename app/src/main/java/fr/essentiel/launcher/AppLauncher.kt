@@ -71,7 +71,7 @@ object AppLauncher {
 
     const val BUILTIN_PREFIX = "builtin:"
 
-    data class SlotInfo(val label: String, val icon: LineIcon?, val letter: String)
+    data class SlotInfo(val label: String, val icon: LineIcon?, val letter: String, val pkg: String? = null)
 
     /** Nom et icône d'une case de l'accueil, ou null si la case est vide / l'app a disparu. */
     fun slotInfo(ctx: Context, slot: String): SlotInfo? {
@@ -83,7 +83,7 @@ object AppLauncher {
         }
         if (!isInstalled(ctx, slot)) return null
         val l = label(ctx, slot)
-        return SlotInfo(l, null, l.firstOrNull()?.uppercase() ?: "?")
+        return SlotInfo(l, null, l.firstOrNull()?.uppercase() ?: "?", slot)
     }
 
     fun launchSlot(ctx: Context, prefs: Prefs, slot: String, onBlocked: (String) -> Unit) {
