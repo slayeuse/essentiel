@@ -78,7 +78,7 @@ object AppLauncher {
         if (slot.isBlank()) return null
         if (slot.startsWith(BUILTIN_PREFIX)) {
             val b = BUILT_INS.firstOrNull { it.id == slot.removePrefix(BUILTIN_PREFIX) } ?: return null
-            val short = when (b.id) { "phone" -> "Appel"; "memos" -> "Mémos"; "reminders" -> "Rappels"; else -> b.label }
+            val short = when (b.id) { "phone" -> "Appel"; "memos" -> "Mémos"; "reminders" -> "Rappels"; "calc" -> "Calcul"; else -> b.label }
             return SlotInfo(short, b.icon, "")
         }
         if (!isInstalled(ctx, slot)) return null

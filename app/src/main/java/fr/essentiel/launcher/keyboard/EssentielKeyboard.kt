@@ -147,16 +147,53 @@ class EssentielKeyboard : InputMethodService(), LifecycleOwner, ViewModelStoreOw
 
     fun type(text: String) {
         val t = if (mode == KbMode.LETTERS && shift != Shift.OFF) text.uppercase() else text
-        ic()?.commitText(t, 1)
+        if (text != " ") lastFix = null
+        val c = ic()
+        if (t == " " && c != null && !noSuggestions) {
+            val before = c.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+            // Double espace = point
+            if (KbPrefs.doubleSpace(this) && before.length == 2 && before[1] == ' ' && before[0].isLetterOrDigit()) {
+                c.deleteSurroundingText(1, 0)
+                c.commitText(". ", 1)
+                accents = emptyList(); updateAutoCaps(); refreshWord()
+                return
+            }
+            // Correction des accents du mot qu'on vient de finir
+            if (KbPrefs.accentFix(this) && currentWord.isNotEmpty()) {
+                Dictionary.accentFix(currentWord)?.let { fixed ->
+                    if (fixed != currentWord) {
+                        c.deleteSurroundingText(currentWord.length, 0)
+                        c.commitText(fixed, 1)
+                        lastFix = currentWord to fixed
+                    }
+                }
+            }
+        }
+        c?.commitText(t, 1)
         accents = emptyList()
         if (shift == Shift.ONCE) shift = Shift.OFF
-        if (t == " " && !noSuggestions && currentWord.isNotEmpty()) Dictionary.learn(applicationContext, currentWord)
+        if (t == " " && !noSuggestions && currentWord.isNotEmpty() && lastFix?.first != currentWord) {
+            Dictionary.learn(applicationContext, currentWord)
+        }
         updateAutoCaps()
         refreshWord()
     }
 
+    /** Mot corrigé automatiquement (pour annuler avec effacer). */
+    private var lastFix: Pair<String, String>? = null
+
     fun backspace() {
         val c = ic() ?: return
+        // Effacer juste après une correction : on remet le mot d'origine
+        lastFix?.let { (orig, fixed) ->
+            val before = c.getTextBeforeCursor(fixed.length + 1, 0)?.toString().orEmpty()
+            lastFix = null
+            if (before == "$fixed ") {
+                c.deleteSurroundingText(fixed.length + 1, 0)
+                c.commitText(orig, 1)
+                refreshWord(); return
+            }
+        }
         val sel = c.getSelectedText(0)
         if (!sel.isNullOrEmpty()) c.commitText("", 1)
         else {
@@ -168,6 +205,18 @@ class EssentielKeyboard : InputMethodService(), LifecycleOwner, ViewModelStoreOw
         accents = emptyList()
         updateAutoCaps()
         refreshWord()
+    }
+
+    /** Efface le mot avant le curseur (glisser vers la gauche sur « effacer »). */
+    fun deleteWord() {
+        val c = ic() ?: return
+        val before = c.getTextBeforeCursor(60, 0)?.toString().orEmpty()
+        if (before.isEmpty()) return
+        val trimmed = before.trimEnd()
+        val wordLen = trimmed.length - trimmed.indexOfLast { it == ' ' || it == '\n' } - 1
+        c.deleteSurroundingText((before.length - trimmed.length) + wordLen, 0)
+        lastFix = null
+        updateAutoCaps(); refreshWord()
     }
 
     fun pickSuggestion(word: String) {

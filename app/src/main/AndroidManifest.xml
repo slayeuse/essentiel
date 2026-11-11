@@ -54,6 +54,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="Essentiel"
         android:supportsRtl="false"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Essentiel">
 
         <activity
@@ -105,6 +106,18 @@
                 <data android:scheme="smsto" />
                 <data android:scheme="mms" />
                 <data android:scheme="mmsto" />
+            </intent-filter>
+            <!-- Navigateur par défaut (liens web) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.WEB_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

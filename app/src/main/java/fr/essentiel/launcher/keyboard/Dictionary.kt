@@ -51,6 +51,37 @@ object Dictionary {
         ctx.getSharedPreferences("clavier", Context.MODE_PRIVATE).edit().putInt("w_$w", n).apply()
     }
 
+    /** Mot connu tel quel ? */
+    fun isKnown(word: String): Boolean {
+        val w = word.lowercase()
+        if (learned.containsKey(word) || learned.containsKey(w)) return true
+        val key = normalize(w)
+        val arr = entries
+        var lo = 0; var hi = arr.size
+        while (lo < hi) { val mid = (lo + hi) / 2; if (arr[mid].key < key) lo = mid + 1 else hi = mid }
+        var i = lo
+        while (i < arr.size && arr[i].key == key) { if (arr[i].word == w) return true; i++ }
+        return false
+    }
+
+    /**
+     * Correction des accents : « ecole » → « école », « tres » → « très ».
+     * Seulement si le mot tapé n'existe pas et qu'un mot fréquent s'écrit pareil avec des accents.
+     */
+    fun accentFix(word: String): String? {
+        if (word.length < 2 || isKnown(word)) return null
+        val key = normalize(word)
+        val arr = entries
+        var lo = 0; var hi = arr.size
+        while (lo < hi) { val mid = (lo + hi) / 2; if (arr[mid].key < key) lo = mid + 1 else hi = mid }
+        var best: Entry? = null
+        var i = lo
+        while (i < arr.size && arr[i].key == key) { if (best == null || arr[i].freq > best.freq) best = arr[i]; i++ }
+        val b = best ?: return null
+        if (b.freq < 50_000 - 30_000) return null // seulement les mots assez courants
+        return if (word.first().isUpperCase()) b.word.replaceFirstChar { it.uppercase() } else b.word
+    }
+
     /** Jusqu'à 3 suggestions pour le début de mot tapé. */
     fun suggest(prefix: String): List<String> {
         if (prefix.isEmpty()) return emptyList()

@@ -19,6 +19,8 @@ import fr.essentiel.launcher.clock.ClockScreen
 import fr.essentiel.launcher.map.MapScreen
 import fr.essentiel.launcher.memos.MemosScreen
 import fr.essentiel.launcher.weather.WeatherScreen
+import fr.essentiel.launcher.calc.CalcScreen
+import fr.essentiel.launcher.browser.BrowserScreen
 import fr.essentiel.launcher.contacts.ContactDetailScreen
 import fr.essentiel.launcher.contacts.ContactEditScreen
 import fr.essentiel.launcher.contacts.ContactsScreen
@@ -51,6 +53,8 @@ sealed class Route {
     data object Memos : Route()
     data object Map : Route()
     data object Weather : Route()
+    data object Calc : Route()
+    data class Browser(val url: String = "") : Route()
 }
 
 /** Les apps intégrées, avec leur identifiant (utilisé par les boutons et la liste « mes apps »). */
@@ -68,6 +72,8 @@ val BUILT_INS = listOf(
     BuiltIn("memos", "Mémos vocaux", Icons.mic),
     BuiltIn("map", "Carte", Icons.map),
     BuiltIn("weather", "Météo", Icons.cloudSun),
+    BuiltIn("calc", "Calculatrice", Icons.calc),
+    BuiltIn("web", "Web", Icons.globe),
 )
 
 class Nav(private val stack: SnapshotStateList<Route>, private val finish: () -> Unit) {
@@ -94,8 +100,10 @@ class ToolsActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        stack.clear()
-        stack.add(routeFrom(intent))
+        val r = routeFrom(intent)
+        // Un lien ouvert depuis une app intégrée (ex. un SMS) s'empile : retour = on revient au message.
+        if (r is Route.Browser && stack.isNotEmpty() && stack.last() !is Route.Browser) stack.add(r)
+        else { stack.clear(); stack.add(r) }
     }
 
     private fun routeFrom(i: Intent?): Route {
@@ -104,7 +112,13 @@ class ToolsActivity : ComponentActivity() {
         when (i?.action) {
             Intent.ACTION_DIAL, Intent.ACTION_CALL_BUTTON ->
                 return Route.Phone(if (scheme == "tel") data?.schemeSpecificPart.orEmpty() else "")
-            Intent.ACTION_VIEW -> if (scheme == "tel") return Route.Phone(data?.schemeSpecificPart.orEmpty())
+            Intent.ACTION_VIEW -> {
+                if (scheme == "tel") return Route.Phone(data?.schemeSpecificPart.orEmpty())
+                if (scheme == "http" || scheme == "https") return Route.Browser(data.toString())
+            }
+            Intent.ACTION_WEB_SEARCH -> return Route.Browser(
+                fr.essentiel.launcher.browser.BrowserData.toUrl(this, i?.getStringExtra(android.app.SearchManager.QUERY).orEmpty())
+            )
         }
         if (scheme in listOf("sms", "smsto", "mms", "mmsto")) {
             val address = data?.schemeSpecificPart?.substringBefore("?").orEmpty()
@@ -127,6 +141,8 @@ class ToolsActivity : ComponentActivity() {
             "memos" -> Route.Memos
             "map" -> Route.Map
             "weather" -> Route.Weather
+            "calc" -> Route.Calc
+            "web" -> Route.Browser()
             else -> Route.Phone()
         }
     }
@@ -174,6 +190,8 @@ fun ToolsHost(stack: SnapshotStateList<Route>, nav: Nav) {
             Route.Memos -> MemosScreen(nav)
             Route.Map -> MapScreen(nav)
             Route.Weather -> WeatherScreen(nav)
+            Route.Calc -> CalcScreen(nav)
+            is Route.Browser -> BrowserScreen(nav, r.url)
         }
     }
 }

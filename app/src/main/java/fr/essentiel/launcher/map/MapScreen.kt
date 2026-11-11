@@ -19,6 +19,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -535,10 +536,12 @@ private fun MapContent(nav: Nav) {
                 }
                 LaunchedEffect(Unit) { while (true) { nowTick = System.currentTimeMillis(); locationOn = LocationSource.isLocationOn(ctx); delay(3000) } }
                 val loc = me
+                val playBad = LocationSource.playStatus > 0
                 val status = when {
                     !locationOn -> "localisation désactivée · toucher pour l'activer"
+                    playBad && (loc == null || loc.provider != "fused") -> "services Google Play à mettre à jour · toucher"
                     loc == null -> "recherche de ta position…"
-                    loc.accuracy > 150 -> "position approximative (± ${loc.accuracy.toInt()} m), affinage…"
+                    loc.accuracy > 150 -> "position approximative (± ${loc.accuracy.toInt()} m), affinage… · diagnostic"
                     else -> null
                 }
                 if (status != null) {
@@ -547,8 +550,14 @@ private fun MapContent(nav: Nav) {
                         status, style = bodyStyle(13, Color.White, bold = true),
                         modifier = Modifier.padding(horizontal = 14.dp).clip(RoundedCornerShape(50))
                             .background(if (!locationOn) Palette.Accent else Palette.Ink.copy(alpha = 0.75f))
-                            .clickable(enabled = !locationOn) {
-                                ctx.startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            .clickable {
+                                if (!locationOn) {
+                                    ctx.startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } else if (playBad) {
+                                    try {
+                                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.gms")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    } catch (e: Exception) { }
+                                } else showSettings = true
                             }
                             .padding(horizontal = 14.dp, vertical = 7.dp)
                     )
@@ -827,6 +836,46 @@ private fun MapContent(nav: Nav) {
 
 private val minusIcon = LineIcon(listOf("M5 12h14"))
 
+/** Ce que renvoie chaque source de position : pour comprendre une position fausse. */
+@Composable
+private fun LocationDiagnostic() {
+    val ctx = LocalContext.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+    val play = LocationSource.playStatus
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.Card).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text("DIAGNOSTIC DE LA POSITION", style = bodyStyle(12, Palette.Accent, bold = true))
+        Text("Services Google : " + LocationSource.playStatusText(play), style = bodyStyle(13))
+        if (play > 0) {
+            Text(
+                "mettre à jour les services Google Play", style = bodyStyle(13, Palette.Accent, bold = true),
+                modifier = Modifier.clickable {
+                    try {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.gms")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) { }
+                }
+            )
+        }
+        Text("Localisation du téléphone : " + if (LocationSource.isLocationOn(ctx)) "activée" else "DÉSACTIVÉE", style = bodyStyle(13))
+        if (LocationSource.debug.isEmpty()) Text("aucune position reçue pour l'instant", style = bodyStyle(13, Palette.Muted))
+        LocationSource.debug.entries.sortedBy { it.key }.forEach { (src, l) ->
+            @Suppress("DEPRECATION")
+            val mock = l.isFromMockProvider
+            Text(
+                String.format(
+                    Locale.FRANCE, "%s : %.5f, %.5f · ±%d m · il y a %d s%s",
+                    src, l.latitude, l.longitude, l.accuracy.toInt(), ((now - l.time) / 1000).coerceAtLeast(0), if (mock) " · FAUSSE (simulée)" else ""
+                ),
+                style = bodyStyle(12, if (mock) Palette.Accent else Palette.Ink)
+            )
+        }
+        Text("Si « google » n'apparaît pas, c'est que le service de Google ne répond pas à Essentiel.", style = bodyStyle(11, Palette.Muted))
+    }
+}
+
 @Composable
 private fun MapSettingsDialog(onClose: () -> Unit, onChanged: () -> Unit) {
     val ctx = LocalContext.current
@@ -838,7 +887,7 @@ private fun MapSettingsDialog(onClose: () -> Unit, onChanged: () -> Unit) {
         containerColor = Palette.Bg,
         title = { Text("Réglages de la carte", style = serifStyle(26)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Guidage vocal", style = bodyStyle(16), modifier = Modifier.weight(1f))
                     fr.essentiel.launcher.clock.Switch(voice) { voice = !voice; MapPlaces.setVoice(ctx, voice) }
@@ -853,6 +902,7 @@ private fun MapSettingsDialog(onClose: () -> Unit, onChanged: () -> Unit) {
                     style = bodyStyle(13, Palette.Muted)
                 )
                 fr.essentiel.launcher.Field(key, { key = it }, "clé TomTom (facultatif)", Modifier.fillMaxWidth())
+                LocationDiagnostic()
                 Text(
                     "ouvrir developer.tomtom.com", style = bodyStyle(14, Palette.Accent, bold = true),
                     modifier = Modifier.clickable {

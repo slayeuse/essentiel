@@ -15,6 +15,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.Surface
 import android.view.WindowManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.CurrentLocationRequest
@@ -33,13 +35,33 @@ import com.google.android.gms.location.Priority
  */
 object LocationSource {
 
+    /** Dernière position reçue de chaque source (pour l'écran de diagnostic). */
+    val debug = androidx.compose.runtime.mutableStateMapOf<String, Location>()
+    /** État des services Google Play (0 = OK). */
+    var playStatus by androidx.compose.runtime.mutableIntStateOf(-1)
+        private set
+    @Volatile private var lastFused = 0L
+
+    fun playStatusText(code: Int): String = when (code) {
+        -1 -> "non vérifié"
+        ConnectionResult.SUCCESS -> "OK"
+        ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED -> "mise à jour nécessaire"
+        ConnectionResult.SERVICE_DISABLED -> "désactivés"
+        ConnectionResult.SERVICE_MISSING -> "absents"
+        ConnectionResult.SERVICE_UPDATING -> "en cours de mise à jour"
+        else -> "erreur $code"
+    }
+
     fun isLocationOn(ctx: Context): Boolean = try {
         ctx.getSystemService(LocationManager::class.java)?.isLocationEnabled ?: true
     } catch (e: Exception) { true }
 
     /** Garde la meilleure position entre deux sources. */
     fun better(new: Location, old: Location?): Boolean {
+        // Quand le service Google répond, on ignore les autres sources (souvent fausses sur certains téléphones)
+        if (new.provider != "fused" && System.currentTimeMillis() - lastFused < 20_000) return false
         if (old == null) return true
+        if (new.provider == "fused" && old.provider != "fused") return true
         val age = new.time - old.time
         if (age > 8_000) return true                         // l'ancienne est périmée
         if (age < -8_000) return false                       // la nouvelle est plus vieille
@@ -52,22 +74,28 @@ object LocationSource {
         val coarse = ctx.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return {}
         val stops = mutableListOf<() -> Unit>()
+        val report: (String, Location) -> Unit = { src, l ->
+            debug[src] = l
+            if (src == "google") lastFused = System.currentTimeMillis()
+            onLocation(l)
+        }
         val recent = { l: Location -> System.currentTimeMillis() - l.time < 2 * 60_000L }
 
         // ----- 1) Google (fusionnée) -----
         try {
-            val ok = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ctx) == ConnectionResult.SUCCESS
+            playStatus = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ctx)
+            val ok = playStatus == ConnectionResult.SUCCESS
             if (ok) {
                 val client = LocationServices.getFusedLocationProviderClient(ctx)
                 val priority = if (fine) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
                 // position toute fraîche à l'ouverture
                 client.getCurrentLocation(
                     CurrentLocationRequest.Builder().setPriority(priority).setMaxUpdateAgeMillis(0).build(), null
-                ).addOnSuccessListener { loc -> if (loc != null) onLocation(loc) }
+                ).addOnSuccessListener { loc -> if (loc != null) report("google", loc) }
                 val request = LocationRequest.Builder(priority, 1000L)
                     .setMinUpdateIntervalMillis(500L).setWaitForAccurateLocation(false).build()
                 val callback = object : LocationCallback() {
-                    override fun onLocationResult(result: LocationResult) { result.lastLocation?.let(onLocation) }
+                    override fun onLocationResult(result: LocationResult) { result.lastLocation?.let { report("google", it) } }
                 }
                 client.requestLocationUpdates(request, callback, Looper.getMainLooper())
                 stops += { try { client.removeLocationUpdates(callback) } catch (e: Exception) { } }
@@ -79,7 +107,7 @@ object LocationSource {
             val lm = ctx.getSystemService(LocationManager::class.java)
             if (lm != null) {
                 val listener = object : LocationListener {
-                    override fun onLocationChanged(location: Location) = onLocation(location)
+                    override fun onLocationChanged(location: Location) = report(location.provider ?: "android", location)
                     @Deprecated("API 29") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
                     override fun onProviderEnabled(provider: String) {}
                     override fun onProviderDisabled(provider: String) {}
@@ -87,7 +115,7 @@ object LocationSource {
                 listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
                     .mapNotNull { p -> try { lm.getLastKnownLocation(p) } catch (e: Exception) { null } }
                     .filter(recent)
-                    .minByOrNull { it.accuracy }?.let(onLocation)
+                    .minByOrNull { it.accuracy }?.let { report("mémoire " + (it.provider ?: ""), it) }
                 if (fine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                     lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, Looper.getMainLooper())
                 }

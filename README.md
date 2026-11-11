@@ -96,6 +96,13 @@ Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut).
   (Google + GPS en même temps, position fraîche à chaque ouverture, état de la position affiché).
 - **Photo** : le bouton 0,5 explique que ASUS bloque le grand-angle et ouvre l'appareil photo ASUS.
 
+## Nouveau en 0.8
+- **Carte** : la position passe d'abord par Google (comme Citymapper), les anciennes positions fausses sont ignorées. Diagnostic dans ⚙ → « Diagnostic de la position ».
+- **Clavier** amélioré (réglages dans Essentiel → Clavier Essentiel).
+- **Galerie** : zoom à deux doigts et double-tap dans les photos.
+- **Calculatrice** (simple + scientifique, historique).
+- **Web** : navigateur façon Safari (barre en bas, onglets, favoris, historique, suggestions, choix du moteur, blocage des réseaux sociaux activable). Peut devenir le navigateur par défaut dans les réglages.
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

@@ -172,6 +172,10 @@ object Icons {
     val eye = LineIcon(listOf("M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"), circles = listOf(Triple(12f, 12f, 3f)))
     val sunrise = LineIcon(listOf("M12 2v8", "M4.93 10.93l1.41 1.41", "M2 18h2", "M20 18h2", "M19.07 10.93l-1.41 1.41", "M22 22H2", "M8 6l4-4 4 4", "M16 18a4 4 0 0 0-8 0"))
     val leaf = LineIcon(listOf("M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z", "M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"))
+    val lock = LineIcon(listOf("M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z", "M7 11V7a5 5 0 0 1 10 0v4"))
+    val tabs = LineIcon(listOf("M8 8h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z", "M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2"))
+    val more = LineIcon(emptyList(), dots = listOf(5f to 12f, 12f to 12f, 19f to 12f))
+    val calc = LineIcon(listOf("M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M8 6h8v4H8z"), dots = listOf(8f to 14f, 12f to 14f, 16f to 14f, 8f to 18f, 12f to 18f, 16f to 18f))
     val map = LineIcon(
         listOf("M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14", "M15 6v14")
     )

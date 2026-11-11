@@ -306,6 +306,7 @@ fun ViewerScreen(nav: Nav, startIndex: Int) {
     var pendingDelete by remember { mutableStateOf<Uri?>(null) }
     var chrome by remember { mutableStateOf(true) }      // barres visibles
     var showInfo by remember { mutableStateOf(false) }   // panneau d'infos
+    var zoomed by remember { mutableStateOf(false) }     // photo zoomée : pas de défilement
 
     val current = items.getOrNull(pager.currentPage)
     var info by remember { mutableStateOf<MediaInfo?>(null) }
@@ -349,15 +350,17 @@ fun ViewerScreen(nav: Nav, startIndex: Int) {
                     onDragStart = { total = 0f },
                     onDragEnd = {
                         // Glisser (vers le haut ou le bas) : affiche les infos ; vers le bas quand elles sont ouvertes : les ferme
-                        if (total < -80f) showInfo = true
-                        else if (total > 80f) showInfo = !showInfo
+                        if (!zoomed) {
+                            if (total < -80f) showInfo = true
+                            else if (total > 80f) showInfo = !showInfo
+                        }
                     },
                     onVerticalDrag = { _, d -> total += d },
                 )
             }
     ) {
         HorizontalPager(
-            state = pager, modifier = Modifier.fillMaxSize(),
+            state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !zoomed,
             key = { items.getOrNull(it)?.uri?.toString() ?: it.toString() }
         ) { page ->
             val m = items.getOrNull(page) ?: return@HorizontalPager
@@ -379,12 +382,22 @@ fun ViewerScreen(nav: Nav, startIndex: Int) {
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    AsyncImage(
-                        model = m.uri, imageLoader = MediaRepo.loader(ctx), contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxWidth().fillMaxHeight(if (showInfo) 0.5f else 1f)
-                            .align(if (showInfo) Alignment.TopCenter else Alignment.Center)
-                    )
+                    if (m.isVideo) {
+                        AsyncImage(
+                            model = m.uri, imageLoader = MediaRepo.loader(ctx), contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().fillMaxHeight(if (showInfo) 0.5f else 1f)
+                                .align(if (showInfo) Alignment.TopCenter else Alignment.Center)
+                        )
+                    } else {
+                        ZoomableImage(
+                            model = m.uri, loader = MediaRepo.loader(ctx),
+                            modifier = Modifier.fillMaxWidth().fillMaxHeight(if (showInfo) 0.5f else 1f)
+                                .align(if (showInfo) Alignment.TopCenter else Alignment.Center),
+                            onZoomChange = { z -> if (pager.currentPage == page) zoomed = z },
+                            onTap = { chrome = !chrome },
+                        )
+                    }
                     if (m.isVideo) {
                         Box(
                             Modifier.size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))

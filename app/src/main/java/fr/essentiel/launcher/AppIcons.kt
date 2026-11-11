@@ -37,7 +37,7 @@ object AppIcons {
         "book" to Icons.book, "globe" to Icons.globe, "cart" to Icons.cart, "card" to Icons.card,
         "home" to Icons.home, "heart" to Icons.heart, "star" to Icons.star, "gear" to Icons.gear,
         "search" to Icons.search, "send" to Icons.send, "share" to Icons.share, "sun" to Icons.sun,
-        "flash" to Icons.flash, "sparkles" to Icons.sparkles,
+        "flash" to Icons.flash, "sparkles" to Icons.sparkles, "calc" to Icons.calc,
     )
 
     private fun sp(ctx: Context) = ctx.getSharedPreferences("essentiel", Context.MODE_PRIVATE)

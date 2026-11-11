@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +50,12 @@ import kotlinx.coroutines.launch
 private val KbBg = Color(0xFFDCD8D1)
 private val KeyBg = Color(0xFFF6F4F0)
 private val SpecialBg = Color(0xFFC9C4BB)
-private val KEY_H = 50.dp
+private val LocalKeyH = androidx.compose.runtime.compositionLocalOf { 50.dp }
+
+/** Petite vibration (si activée dans les réglages). */
+private fun buzz(view: android.view.View) {
+    if (KbPrefs.vibration(view.context)) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+}
 
 private val LETTERS = listOf("azertyuiop", "qsdfghjklm", "wxcvbn'")
 private val SYMBOLS = listOf("1234567890", "@#€_&-+()/", "*\"':;!?")
@@ -61,6 +68,11 @@ private val EMOJIS = (
 
 @Composable
 fun KeyboardUI(kb: EssentielKeyboard) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val v = KbPrefs.version.intValue
+    val tall = androidx.compose.runtime.remember(v) { KbPrefs.tall(ctx) }
+    val numberRow = androidx.compose.runtime.remember(v) { KbPrefs.numberRow(ctx) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalKeyH provides if (tall) 56.dp else 48.dp) {
     Column(Modifier.fillMaxWidth().background(KbBg).padding(horizontal = 3.dp, vertical = 4.dp)) {
         TopBar(kb)
         when (kb.mode) {
@@ -73,6 +85,9 @@ fun KeyboardUI(kb: EssentielKeyboard) {
                     else -> LETTERS
                 }
                 val upper = kb.mode == KbMode.LETTERS && kb.shift != Shift.OFF
+                if (numberRow && kb.mode == KbMode.LETTERS) {
+                    KeyRow { "1234567890".forEach { c -> CharKey(kb, c.toString(), false) } }
+                }
                 // Rangée 1 et 2
                 KeyRow { rows[0].forEach { c -> CharKey(kb, c.toString(), upper) } }
                 KeyRow { rows[1].forEach { c -> CharKey(kb, c.toString(), upper) } }
@@ -91,7 +106,7 @@ fun KeyboardUI(kb: EssentielKeyboard) {
                         }
                     }
                     rows[2].forEach { c -> CharKey(kb, c.toString(), upper) }
-                    RepeatKey(Modifier.weight(1.5f)) { kb.backspace() }
+                    RepeatKey(Modifier.weight(1.5f), onSwipeLeft = { kb.deleteWord() }) { kb.backspace() }
                 }
                 // Rangée du bas
                 KeyRow {
@@ -106,6 +121,7 @@ fun KeyboardUI(kb: EssentielKeyboard) {
                 }
             }
         }
+    }
     }
 }
 
@@ -147,7 +163,7 @@ private val chevronDown = LineIcon(listOf("M6 9l6 6 6-6"))
 @Composable
 private fun KeyRow(content: @Composable RowScope.() -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(KEY_H + 8.dp).padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().height(LocalKeyH.current + 8.dp).padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         content = content,
     )
@@ -160,17 +176,18 @@ private fun keyModifier(bg: Color, modifier: Modifier): Modifier =
 @Composable
 private fun RowScope.CharKey(kb: EssentielKeyboard, c: String, upper: Boolean, weight: Float = 1f) {
     val view = LocalView.current
+    var pressed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Box(
-        keyModifier(KeyBg, Modifier.weight(weight)).pointerInput(c) {
+        keyModifier(if (pressed) SpecialBg else KeyBg, Modifier.weight(weight)).pointerInput(c) {
             detectTapGestures(
-                onPress = { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) },
+                onPress = { pressed = true; buzz(view); tryAwaitRelease(); pressed = false },
                 onTap = { kb.type(c) },
                 onLongPress = { kb.showAccents(c) },
             )
         },
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (upper) c.uppercase() else c, style = bodyStyle(21))
+        Text(if (upper) c.uppercase() else c, style = bodyStyle(if (pressed) 25 else 21, if (pressed) Palette.Accent else Palette.Ink))
     }
 }
 
@@ -186,7 +203,7 @@ private fun SpecialKey(
     val view = LocalView.current
     Box(
         keyModifier(if (highlight) Palette.Accent else SpecialBg, modifier)
-            .clickable { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); onClick() },
+            .clickable { buzz(view); onClick() },
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -199,20 +216,31 @@ private fun SpecialKey(
 
 /** Touche effacer : maintenir pour effacer en continu. */
 @Composable
-private fun RepeatKey(modifier: Modifier, action: () -> Unit) {
+private fun RepeatKey(modifier: Modifier, onSwipeLeft: (() -> Unit)? = null, action: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     Box(
         keyModifier(SpecialBg, modifier).pointerInput(Unit) {
             awaitEachGesture {
-                awaitFirstDown()
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                val down = awaitFirstDown()
+                buzz(view)
                 action()
                 val job = scope.launch {
                     delay(420)
                     while (true) { action(); delay(55) }
                 }
-                waitForUpOrCancellation()
+                var dx = 0f
+                var wordDeleted = false
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    dx += change.positionChange().x
+                    if (!wordDeleted && dx < -60f * density) {
+                        job.cancel(); wordDeleted = true
+                        onSwipeLeft?.invoke()
+                    }
+                }
                 job.cancel()
             }
         },
@@ -247,7 +275,7 @@ private fun SpaceKey(kb: EssentielKeyboard, modifier: Modifier) {
                 }
                 if (!moved) {
                     if (System.currentTimeMillis() - start > 600) kb.showPicker()
-                    else { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); kb.type(" ") }
+                    else { buzz(view); kb.type(" ") }
                 }
             }
         },
@@ -259,7 +287,7 @@ private fun SpaceKey(kb: EssentielKeyboard, modifier: Modifier) {
 private fun EnterKey(kb: EssentielKeyboard, modifier: Modifier) {
     val view = LocalView.current
     Box(
-        keyModifier(Palette.Accent, modifier).clickable { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); kb.enter() },
+        keyModifier(Palette.Accent, modifier).clickable { buzz(view); kb.enter() },
         contentAlignment = Alignment.Center,
     ) {
         if (kb.enterLabel == "↵") LineIconView(enterIcon, Color.White, 22.dp)
@@ -274,7 +302,7 @@ private fun EmojiPanel(kb: EssentielKeyboard) {
     Column {
         LazyVerticalGrid(
             columns = GridCells.Fixed(8),
-            modifier = Modifier.fillMaxWidth().height(KEY_H * 3 + 24.dp),
+            modifier = Modifier.fillMaxWidth().height(LocalKeyH.current * 3 + 24.dp),
         ) {
             items(EMOJIS) { e ->
                 Box(
@@ -286,7 +314,7 @@ private fun EmojiPanel(kb: EssentielKeyboard) {
         KeyRow {
             SpecialKey(Modifier.weight(1.5f), text = "ABC") { kb.mode = KbMode.LETTERS }
             SpaceKey(kb, Modifier.weight(5f))
-            RepeatKey(Modifier.weight(1.5f)) { kb.backspace() }
+            RepeatKey(Modifier.weight(1.5f), onSwipeLeft = { kb.deleteWord() }) { kb.backspace() }
         }
     }
 }

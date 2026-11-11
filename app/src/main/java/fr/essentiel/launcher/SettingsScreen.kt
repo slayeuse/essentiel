@@ -164,6 +164,27 @@ fun SettingsScreen(
                     ctx.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showInputMethodPicker()
                 }
             }
+            item {
+                val v = fr.essentiel.launcher.keyboard.KbPrefs.version.intValue
+                val kp = fr.essentiel.launcher.keyboard.KbPrefs
+                Column {
+                    listOf(
+                        Triple("vibration", "Vibration des touches", kp.vibration(ctx)),
+                        Triple("accents", "Corriger les accents (ecole → école)", kp.accentFix(ctx)),
+                        Triple("double_espace", "Double espace = point", kp.doubleSpace(ctx)),
+                        Triple("chiffres", "Rangée de chiffres", kp.numberRow(ctx)),
+                        Triple("grand", "Grandes touches", kp.tall(ctx)),
+                    ).forEach { (key, label, on) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { kp.set(ctx, key, !on) }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(label, style = bodyStyle(16), modifier = Modifier.weight(1f))
+                            fr.essentiel.launcher.clock.Switch(on) { kp.set(ctx, key, !on) }
+                        }
+                    }
+                }
+            }
 
             item { Section("Écran de verrouillage") }
             item {
@@ -202,6 +223,20 @@ fun SettingsScreen(
                     } else {
                         PhoneActions.roleIntent(ctx, RoleManager.ROLE_SMS)?.let { askRole.launch(it) }
                     }
+                }
+            }
+
+            item {
+                val ok = remember(resumeTick, refresh) {
+                    try { ctx.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_BROWSER) == true } catch (e: Exception) { false }
+                }
+                SettingRow(
+                    "Navigateur par défaut",
+                    if (ok) "Essentiel Web · les liens s'ouvrent ici" else "facultatif · pour ouvrir les liens dans Essentiel Web"
+                ) {
+                    val i = PhoneActions.roleIntent(ctx, RoleManager.ROLE_BROWSER)
+                    if (i != null && !ok) askRole.launch(i)
+                    else AppLauncher.start(ctx, Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
             }
 
