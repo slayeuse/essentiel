@@ -131,7 +131,7 @@ fun HomeScreen(
                 Text(
                     "activer la météo",
                     style = bodyStyle(19, Palette.Muted),
-                    modifier = Modifier.clickable { askLocation.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }
+                    modifier = Modifier.clickable { askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
                 )
             } else if (w != null) {
                 LineIconView(Weather.icon(w.code, w.isDay), Palette.Accent, 24.dp)

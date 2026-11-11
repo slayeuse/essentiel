@@ -269,13 +269,34 @@ fun PermissionGate(perms: Array<String>, reason: String, content: @Composable ()
         granted = check()
     }
     LaunchedEffect(Unit) { if (!granted) launcher.launch(perms) }
+    @Suppress("DEPRECATION")
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) granted = check()
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
     if (granted) {
         content()
     } else {
         Column(Modifier.padding(vertical = 24.dp)) {
             Text(reason, style = bodyStyle(17, Palette.Muted))
             Spacer(Modifier.height(16.dp))
-            PillButton("autoriser") { launcher.launch(perms) }
+            Row {
+                PillButton("autoriser") { launcher.launch(perms) }
+                Spacer(Modifier.width(10.dp))
+                // Si Android ne redemande plus (refus précédent), on passe par les réglages de l'app.
+                PillButton("réglages", filled = false) {
+                    try {
+                        ctx.startActivity(
+                            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName))
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (e: Exception) { }
+                }
+            }
         }
     }
 }

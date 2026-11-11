@@ -131,12 +131,16 @@ object LocationSource {
 
     // ---------- Dernière bonne position (pour ouvrir la carte au bon endroit) ----------
     fun saveLast(ctx: Context, l: Location) {
+        if (l.hasAccuracy() && l.accuracy > 300f) return   // on ne garde pas les positions arrondies / imprécises
         ctx.getSharedPreferences("carte", Context.MODE_PRIVATE).edit()
-            .putFloat("last_lat", l.latitude.toFloat()).putFloat("last_lon", l.longitude.toFloat()).apply()
+            .putFloat("last_lat", l.latitude.toFloat()).putFloat("last_lon", l.longitude.toFloat())
+            .putBoolean("last_precise", true).apply()
     }
 
     fun last(ctx: Context): Pair<Double, Double>? {
         val sp = ctx.getSharedPreferences("carte", Context.MODE_PRIVATE)
+        // Les anciennes positions enregistrées (versions ≤ 0.8) peuvent être les fausses : on les oublie.
+        if (!sp.getBoolean("last_precise", false)) return null
         if (!sp.contains("last_lat")) return null
         return sp.getFloat("last_lat", 0f).toDouble() to sp.getFloat("last_lon", 0f).toDouble()
     }

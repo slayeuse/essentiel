@@ -247,8 +247,8 @@ fun SettingsScreen(
                 }
             }
             item {
-                SettingRow("Position (météo)", status(states["location"] == true)) {
-                    askPerm.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                SettingRow("Position précise (carte, météo)", status(ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED)) {
+                    askPerm.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                 }
             }
             item {

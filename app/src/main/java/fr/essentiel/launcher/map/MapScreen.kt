@@ -97,7 +97,8 @@ private val MAP_PERMS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manife
 @Composable
 fun MapScreen(nav: Nav) {
     val ctx = LocalContext.current
-    val granted = MAP_PERMS.any { ctx.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+    // Il faut la position PRÉCISE : avec seulement « approximative », Android arrondit à une grille de 2 km.
+    val granted = ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     if (!granted) {
         ToolScaffold("carte", onBack = nav::back) {
             PermissionGate(MAP_PERMS, "Pour te situer sur la carte et calculer les itinéraires, Essentiel a besoin de ta position.") {
@@ -860,6 +861,18 @@ private fun LocationDiagnostic() {
             )
         }
         Text("Localisation du téléphone : " + if (LocationSource.isLocationOn(ctx)) "activée" else "DÉSACTIVÉE", style = bodyStyle(13))
+        val fine = ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        Text("Autorisation : " + if (fine) "position précise" else "APPROXIMATIVE (arrondie à 2 km)", style = bodyStyle(13))
+        if (!fine) {
+            Text(
+                "ouvrir les autorisations d'Essentiel", style = bodyStyle(13, Palette.Accent, bold = true),
+                modifier = Modifier.clickable {
+                    try {
+                        ctx.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) { }
+                }
+            )
+        }
         if (LocationSource.debug.isEmpty()) Text("aucune position reçue pour l'instant", style = bodyStyle(13, Palette.Muted))
         LocationSource.debug.entries.sortedBy { it.key }.forEach { (src, l) ->
             @Suppress("DEPRECATION")
