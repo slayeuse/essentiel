@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -96,13 +97,22 @@ fun HomeScreen(
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { dragTotal = 0f },
-                    onDragEnd = { if (dragTotal < -120f) onOpenApps() else if (dragTotal > 120f) onOpenControl() },
+                    onDragEnd = { if (dragTotal < -100f) onOpenApps() else if (dragTotal > 80f) onOpenControl() },
                     onVerticalDrag = { _, d -> dragTotal += d },
                 )
             }
             .padding(horizontal = 26.dp)
     ) {
-        Spacer(Modifier.height(28.dp))
+        // Petite poignée : toucher (ou glisser vers le bas depuis le milieu de l'écran) = centre de contrôle
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .clickable(interactionSource = null, indication = null, onClick = onOpenControl),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(width = 44.dp, height = 5.dp).clip(RoundedCornerShape(50)).background(Palette.Line))
+        }
 
         // ----- Date (appui long = réglages) -----
         val day = SimpleDateFormat("EEEE", FR).format(Date(now))
