@@ -72,7 +72,7 @@ class NotifListener : NotificationListenerService() {
         val list = try { activeNotifications?.toList().orEmpty() } catch (e: Exception) { emptyList() }
         val out = list.mapNotNull { sbn ->
             val n = sbn.notification
-            if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return@mapNotNull null
+            if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return@mapNotNull null
             if (sbn.packageName == packageName && sbn.isOngoing) return@mapNotNull null
             // Les lecteurs de musique sont affichés dans la carte « En cours de lecture »
             if (n.extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return@mapNotNull null

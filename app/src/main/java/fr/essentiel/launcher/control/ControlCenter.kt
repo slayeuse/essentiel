@@ -124,7 +124,7 @@ fun ControlCenter(onClose: () -> Unit) {
             vol = Controls.volume(ctx)
         }
     }
-    val refresh = { tick++ }
+    val refresh: () -> Unit = { tick++ }
     var closeDrag by remember { mutableFloatStateOf(0f) }
 
     Column(
@@ -415,7 +415,7 @@ private fun NotifCard(n: NItem, onOpen: () -> Unit) {
             .pointerInput(n.key) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
-                        if (n.clearable && abs(dx) > size.width * 0.35f) { gone = true; NotifListener.dismiss(n.key) } else dx = 0f
+                        if (n.clearable && abs(dx) > size.width * 0.35f) { gone = true; NotifListener.dismiss(n.key) } else { dx = 0f }
                     },
                     onDragCancel = { dx = 0f },
                 ) { _, d -> dx += d }

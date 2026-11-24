@@ -237,7 +237,7 @@ private fun candidates(ctx: Context): List<AppEntry> {
             KEEP_HINTS.any { pkg.contains(it) } -> -1
             else -> 0
         }
-        AppEntry(pkg, pm.getApplicationLabel(ai).toString(), ai.flags and ApplicationInfo.FLAG_SYSTEM != 0, advice)
+        AppEntry(pkg, pm.getApplicationLabel(ai).toString(), (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0, advice)
     }.sortedWith(compareByDescending<AppEntry> { it.advice }.thenBy { it.label.lowercase() })
 }
 
