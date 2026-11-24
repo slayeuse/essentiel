@@ -204,6 +204,13 @@ fun SettingsScreen(
                 }
             }
 
+            item { Section("Téléphone Essentiel") }
+            item {
+                SettingRow("Système & centre de contrôle", "notifications, barre d'état, nettoyage, mode avancé") {
+                    AppLauncher.start(ctx, ToolsActivity.intent(ctx, "system"))
+                }
+            }
+
             item { Section("Apps intégrées") }
             item {
                 val ok = remember(resumeTick, refresh) { PhoneActions.isDefaultDialer(ctx) }

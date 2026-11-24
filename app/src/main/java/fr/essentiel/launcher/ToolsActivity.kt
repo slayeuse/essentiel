@@ -20,6 +20,7 @@ import fr.essentiel.launcher.map.MapScreen
 import fr.essentiel.launcher.memos.MemosScreen
 import fr.essentiel.launcher.weather.WeatherScreen
 import fr.essentiel.launcher.calc.CalcScreen
+import fr.essentiel.launcher.control.SystemScreen
 import fr.essentiel.launcher.browser.BrowserScreen
 import fr.essentiel.launcher.contacts.ContactDetailScreen
 import fr.essentiel.launcher.contacts.ContactEditScreen
@@ -54,6 +55,7 @@ sealed class Route {
     data object Map : Route()
     data object Weather : Route()
     data object Calc : Route()
+    data object System : Route()
     data class Browser(val url: String = "") : Route()
 }
 
@@ -143,6 +145,7 @@ class ToolsActivity : ComponentActivity() {
             "weather" -> Route.Weather
             "calc" -> Route.Calc
             "web" -> Route.Browser()
+            "system" -> Route.System
             else -> Route.Phone()
         }
     }
@@ -191,6 +194,7 @@ fun ToolsHost(stack: SnapshotStateList<Route>, nav: Nav) {
             Route.Map -> MapScreen(nav)
             Route.Weather -> WeatherScreen(nav)
             Route.Calc -> CalcScreen(nav)
+            Route.System -> SystemScreen(nav)
             is Route.Browser -> BrowserScreen(nav, r.url)
         }
     }

@@ -103,6 +103,13 @@ Mémos vocaux et Carte sont dans la liste « mes apps » (glisser vers le haut).
 - **Calculatrice** (simple + scientifique, historique).
 - **Web** : navigateur façon Safari (barre en bas, onglets, favoris, historique, suggestions, choix du moteur, blocage des réseaux sociaux activable). Peut devenir le navigateur par défaut dans les réglages.
 
+## Nouveau en 0.9 — « téléphone Essentiel » (étape 1, sans root)
+- **Centre de contrôle** : sur l'accueil, glisser vers le bas. Lampe, Ne pas déranger, rotation, position, Wi-Fi, Bluetooth, données, avion, luminosité, volume, sonnerie/vibreur/silence, musique en cours, raccourcis.
+- **Notifications** dans le style Essentiel (dans le centre de contrôle) : toucher pour ouvrir, glisser ou × pour effacer.
+- **Poignée partout** (option) : glisser vers le bas juste sous la barre d'état, à droite, depuis n'importe quelle app.
+- **Réglages → Système** : autorisations, icônes de la barre d'état à masquer, nettoyage des apps préinstallées.
+- **Script Mac** `outils/Essentiel-Mac.command` : donne toutes les autorisations d'un coup, retire / remet les apps choisies. Lancement : Terminal → `bash ` + glisser le fichier → Entrée.
+
 ## Plus tard
 
 Réception et envoi des MMS, notes, carte hors ligne.

@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class Screen { HOME, APPS, SETTINGS }
+enum class Screen { HOME, APPS, SETTINGS, CONTROL }
 
 @Composable
 fun EssentielApp(
@@ -114,6 +114,7 @@ fun EssentielApp(
             prefs = prefs,
             resumeTick = resumeTick,
             onOpenApps = { screen = Screen.APPS },
+            onOpenControl = { screen = Screen.CONTROL },
             onOpenSettings = { screen = Screen.SETTINGS },
             onBlocked = onBlocked,
             onNeedPicker = { pickerFor = it; screen = Screen.SETTINGS },
@@ -130,6 +131,13 @@ fun EssentielApp(
                 onOpenSettings = { screen = Screen.SETTINGS },
                 onBlocked = onBlocked,
             )
+        }
+        AnimatedVisibility(
+            visible = screen == Screen.CONTROL,
+            enter = slideInVertically { -it } + fadeIn(),
+            exit = slideOutVertically { -it } + fadeOut(),
+        ) {
+            fr.essentiel.launcher.control.ControlCenter(onClose = { screen = Screen.HOME })
         }
         AnimatedVisibility(
             visible = screen == Screen.SETTINGS,

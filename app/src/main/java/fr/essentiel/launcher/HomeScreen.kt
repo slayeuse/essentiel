@@ -58,6 +58,7 @@ fun HomeScreen(
     prefs: Prefs,
     resumeTick: Int,
     onOpenApps: () -> Unit,
+    onOpenControl: () -> Unit,
     onOpenSettings: () -> Unit,
     onBlocked: (String) -> Unit,
     onNeedPicker: (Int) -> Unit,
@@ -95,7 +96,7 @@ fun HomeScreen(
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { dragTotal = 0f },
-                    onDragEnd = { if (dragTotal < -120f) onOpenApps() },
+                    onDragEnd = { if (dragTotal < -120f) onOpenApps() else if (dragTotal > 120f) onOpenControl() },
                     onVerticalDrag = { _, d -> dragTotal += d },
                 )
             }
